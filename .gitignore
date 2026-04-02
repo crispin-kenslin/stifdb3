@@ -1,0 +1,47 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Python (backend)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+backend/.venv/
+backend/venv/
+
+# Node/Vite (frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Build and temp artifacts
+build/
+dist/
+tmp/
+temp/
+
+# Coverage
+coverage/
+*.coverage
