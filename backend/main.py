@@ -132,6 +132,11 @@ def gene_tfbs_data(gene_id: str) -> dict:
     return store.get_gene_tfbs(gene_id)
 
 
+@app.get("/tfbs/{tfbs_name}")
+def tfbs_detail(tfbs_name: str) -> dict:
+    return store.get_tfbs_detail(tfbs_name)
+
+
 @app.get("/gene/{gene_id}")
 def gene_detail(gene_id: str) -> dict:
     rec = store.find_gene(gene_id)

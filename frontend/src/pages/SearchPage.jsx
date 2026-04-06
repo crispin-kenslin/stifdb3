@@ -51,7 +51,7 @@ export default function SearchPage() {
         return;
       }
       
-      // Group by Gene
+      // Group by gene and crop for a concise result table.
       const grouped = {};
       items.forEach(item => {
         // Try multiple column names for gene
@@ -62,54 +62,34 @@ export default function SearchPage() {
         }
 
         const geneStr = String(geneKey).trim();
+        const cropRaw = String(item._crop || "").trim();
+        if (!cropRaw) return;
+
+        const cropDisplay = capitalizeFirst(cropRaw);
+        const groupKey = `${geneStr}__${cropRaw.toLowerCase()}`;
         const tfName = item.TF_Name || item['TF Name'] || item.TF_Family || item['TF Family'] || item.tf_name || item.tf_family;
         const tfStr = tfName ? String(tfName).trim() : "";
         if (!tfStr || tfStr.toLowerCase() === "tf_name" || tfStr.toLowerCase().includes("no tfbs found")) {
           return;
         }
 
-        const startNum = Number(item.Start ?? item.start);
-        const endNum = Number(item.End ?? item.end);
-        const zNum = Number(item['Z-Score'] ?? item['z-score'] ?? item.zscore);
-        
-        if (!grouped[geneStr]) {
-          grouped[geneStr] = {
+        if (!grouped[groupKey]) {
+          grouped[groupKey] = {
             Gene: geneStr,
-            TF_Names: new Set(),
-            starts: [],
-            ends: [],
-            zscores: [],
-            TFBS_Count: 0,
-            _crop: item._crop
+            "Transcription Factors": new Set(),
+            Crop: cropDisplay
           };
         }
         
-        grouped[geneStr].TF_Names.add(tfStr);
-        grouped[geneStr].TFBS_Count += 1;
-        if (Number.isFinite(startNum)) grouped[geneStr].starts.push(startNum);
-        if (Number.isFinite(endNum)) grouped[geneStr].ends.push(endNum);
-        if (Number.isFinite(zNum)) grouped[geneStr].zscores.push(zNum);
+        grouped[groupKey]["Transcription Factors"].add(tfStr);
       });
       
-      // Convert to array and format aggregated values for grouped gene rows.
-      const groupedRows = Object.values(grouped).map(row => {
-        const startMin = row.starts.length ? Math.min(...row.starts) : null;
-        const startMax = row.starts.length ? Math.max(...row.starts) : null;
-        const endMin = row.ends.length ? Math.min(...row.ends) : null;
-        const endMax = row.ends.length ? Math.max(...row.ends) : null;
-        const zMin = row.zscores.length ? Math.min(...row.zscores) : null;
-        const zMax = row.zscores.length ? Math.max(...row.zscores) : null;
-
-        return {
-          Gene: row.Gene,
-          TF_Names: Array.from(row.TF_Names).sort().join(', '),
-          TFBS_Count: row.TFBS_Count,
-          Start_Range: startMin === null ? 'N/A' : (startMin === startMax ? `${startMin}` : `${startMin} to ${startMax}`),
-          End_Range: endMin === null ? 'N/A' : (endMin === endMax ? `${endMin}` : `${endMin} to ${endMax}`),
-          'Z-Score_Range': zMin === null ? 'N/A' : (zMin === zMax ? `${zMin.toFixed(2)}` : `${zMin.toFixed(2)} to ${zMax.toFixed(2)}`),
-          _crop: row._crop
-        };
-      });
+      // Keep only requested columns.
+      const groupedRows = Object.values(grouped).map(row => ({
+        Gene: row.Gene,
+        "Transcription Factors": Array.from(row["Transcription Factors"]).sort().join(', '),
+        Crop: row.Crop
+      }));
       
       setRows(groupedRows);
       setTotal(groupedRows.length);

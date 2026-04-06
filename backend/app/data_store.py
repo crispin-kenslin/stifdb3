@@ -73,6 +73,8 @@ class DataStore:
         self.data_dir = data_dir
         self.datasets: dict[str, CropDataset] = {}
         self.all_columns: list[str] = []
+        self.tfbs_catalog: dict[str, dict[str, Any]] = {}
+        self.tfbs_catalog_file = self.data_dir / "tfbs" / "tfbs_data.csv"
 
     def load(self) -> None:
         self.datasets = {}
@@ -80,10 +82,14 @@ class DataStore:
             self.all_columns = []
             return
 
+        tfbs_dir = self.tfbs_catalog_file.parent.resolve()
         files = [
             p
-            for p in self.data_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+            for p in self.data_dir.rglob("*")
+            if p.is_file()
+            and p.suffix.lower() in SUPPORTED_EXTENSIONS
+            and tfbs_dir not in p.resolve().parents
+            and p.resolve() != self.tfbs_catalog_file.resolve()
         ]
 
         union_columns: set[str] = set()
@@ -98,6 +104,9 @@ class DataStore:
                 continue
 
         self.all_columns = sorted(union_columns)
+        metadata_map = self._load_tfbs_metadata_map()
+        self.tfbs_catalog = self._build_tfbs_catalog(metadata_map=metadata_map)
+        self._write_tfbs_catalog_csv()
 
     def _load_dataset(self, file_path: Path, crop: str) -> CropDataset:
         suffix = file_path.suffix.lower()
@@ -271,6 +280,25 @@ class DataStore:
                 return out
         return None
 
+    def get_tfbs_detail(self, tfbs_name: str) -> dict[str, Any]:
+        key = tfbs_name.strip().lower()
+        detail = self.tfbs_catalog.get(key)
+        if not detail:
+            return {
+                "name": tfbs_name,
+                "found": False,
+                "function": "",
+                "total_occurrences": 0,
+                "total_genes": 0,
+                "total_crops": 0,
+                "crops": [],
+                "zscore": {"min": None, "max": None, "avg": None},
+                "start": {"min": None, "max": None},
+                "end": {"min": None, "max": None},
+                "sample_genes": [],
+            }
+        return dict(detail)
+
     def get_gene_tfbs(self, gene_id: str) -> dict[str, Any]:
         key = gene_id.strip().lower()
         motifs: list[dict[str, Any]] = []
@@ -331,6 +359,157 @@ class DataStore:
 
         motifs.sort(key=lambda m: (m["start"], m["end"], m["name"]))
         return {"gene_id": gene_id, "crop": found_crop, "motifs": motifs}
+
+    def _build_tfbs_catalog(self, metadata_map: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        metadata_map = metadata_map or {}
+
+        for crop, dataset in self.datasets.items():
+            tf_column = self._find_column_by_keywords(dataset.columns, ["tf"])
+            gene_column = dataset.gene_column
+            start_column = self._find_column_by_keywords(dataset.columns, ["start"])
+            end_column = self._find_column_by_keywords(dataset.columns, ["end"])
+            zscore_column = self._find_column_by_keywords(dataset.columns, ["z", "score"])
+
+            if not tf_column:
+                continue
+
+            for rec in dataset.records:
+                tf_value = rec.get(tf_column)
+                if tf_value in (None, ""):
+                    continue
+
+                tf_name = str(tf_value).strip()
+                if not tf_name:
+                    continue
+
+                tf_key = tf_name.lower()
+                if tf_key not in grouped:
+                    grouped[tf_key] = {
+                        "name": tf_name,
+                        "found": True,
+                        "total_occurrences": 0,
+                        "_genes": set(),
+                        "_crops": set(),
+                        "_starts": [],
+                        "_ends": [],
+                        "_zscores": [],
+                    }
+
+                item = grouped[tf_key]
+                item["total_occurrences"] += 1
+                item["_crops"].add(crop)
+
+                if gene_column:
+                    gene_value = rec.get(gene_column)
+                    if gene_value not in (None, ""):
+                        item["_genes"].add(str(gene_value).strip())
+
+                start_val = _to_float(rec.get(start_column)) if start_column else None
+                end_val = _to_float(rec.get(end_column)) if end_column else None
+                zscore_val = _to_float(rec.get(zscore_column)) if zscore_column else None
+
+                if start_val is not None:
+                    item["_starts"].append(start_val)
+                if end_val is not None:
+                    item["_ends"].append(end_val)
+                if zscore_val is not None:
+                    item["_zscores"].append(zscore_val)
+
+        catalog: dict[str, dict[str, Any]] = {}
+        for tf_key, item in grouped.items():
+            genes = sorted(item["_genes"])
+            crops = sorted(item["_crops"])
+            starts = item["_starts"]
+            ends = item["_ends"]
+            zscores = item["_zscores"]
+
+            avg_zscore = round(sum(zscores) / len(zscores), 4) if zscores else None
+            function_text = str((metadata_map.get(tf_key) or {}).get("function") or "").strip()
+            if not function_text:
+                function_text = "Regulatory TFBS motif associated with transcriptional control in stress response."
+
+            catalog[tf_key] = {
+                "name": item["name"],
+                "found": True,
+                "function": function_text,
+                "total_occurrences": item["total_occurrences"],
+                "total_genes": len(genes),
+                "total_crops": len(crops),
+                "crops": crops,
+                "zscore": {
+                    "min": round(min(zscores), 4) if zscores else None,
+                    "max": round(max(zscores), 4) if zscores else None,
+                    "avg": avg_zscore,
+                },
+                "start": {
+                    "min": int(round(min(starts))) if starts else None,
+                    "max": int(round(max(starts))) if starts else None,
+                },
+                "end": {
+                    "min": int(round(min(ends))) if ends else None,
+                    "max": int(round(max(ends))) if ends else None,
+                },
+                "sample_genes": genes[:20],
+            }
+
+        return catalog
+
+    def _load_tfbs_metadata_map(self) -> dict[str, dict[str, Any]]:
+        if not self.tfbs_catalog_file.exists():
+            return {}
+
+        try:
+            df = pd.read_csv(self.tfbs_catalog_file)
+            if df.empty:
+                return {}
+
+            metadata: dict[str, dict[str, Any]] = {}
+            for row in df.to_dict(orient="records"):
+                name = str(row.get("name") or "").strip()
+                if not name:
+                    continue
+                key = name.lower()
+                raw_function = row.get("function")
+                if pd.isna(raw_function):
+                    raw_function = ""
+                metadata[key] = {
+                    "name": name,
+                    "function": str(raw_function or "").strip(),
+                }
+
+            return metadata
+        except Exception as e:
+            print(f"Warning: Could not read TFBS metadata CSV: {e}")
+            return {}
+
+    def _write_tfbs_catalog_csv(self) -> None:
+        self.tfbs_catalog_file.parent.mkdir(parents=True, exist_ok=True)
+        rows = []
+        for item in sorted(self.tfbs_catalog.values(), key=lambda x: str(x.get("name", "")).lower()):
+            rows.append(
+                {
+                    "name": item.get("name") or "",
+                    "function": item.get("function") or "",
+                    "total_occurrences": item.get("total_occurrences") or 0,
+                    "total_genes": item.get("total_genes") or 0,
+                    "total_crops": item.get("total_crops") or 0,
+                    "crops": "|".join(item.get("crops") or []),
+                    "zscore_min": (item.get("zscore") or {}).get("min"),
+                    "zscore_avg": (item.get("zscore") or {}).get("avg"),
+                    "zscore_max": (item.get("zscore") or {}).get("max"),
+                    "start_min": (item.get("start") or {}).get("min"),
+                    "start_max": (item.get("start") or {}).get("max"),
+                    "end_min": (item.get("end") or {}).get("min"),
+                    "end_max": (item.get("end") or {}).get("max"),
+                    "sample_genes": "|".join(item.get("sample_genes") or []),
+                }
+            )
+
+        try:
+            pd.DataFrame(rows).to_csv(self.tfbs_catalog_file, index=False)
+        except Exception as e:
+            print(f"Warning: Could not write TFBS catalog CSV: {e}")
 
     def query_records(
         self,

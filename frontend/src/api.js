@@ -83,6 +83,7 @@ export const api = {
   search: (params) => request(`/search?${toQueryString(params)}`),
   gene: (geneId) => request(`/gene/${encodeURIComponent(geneId)}`),
   geneTFBS: (geneId) => request(`/gene/${encodeURIComponent(geneId)}/tfbs`),
+  tfbsDetail: (tfbsName) => request(`/tfbs/${encodeURIComponent(tfbsName)}`),
   reload: async () => {
     const res = await fetch(`${PRIMARY_API_BASE}/reload`, { method: 'POST' });
     if (!res.ok) throw new Error(`Reload failed: ${res.status}`);

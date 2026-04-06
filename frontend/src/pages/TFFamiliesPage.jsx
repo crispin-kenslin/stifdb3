@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 
 export default function TFFamiliesPage() {
+  const navigate = useNavigate();
   const [tfFamilies, setTfFamilies] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [openFamily, setOpenFamily] = useState(null);
 
   useEffect(() => {
     Promise.all([api.facets(), api.stats()])
@@ -34,22 +36,62 @@ export default function TFFamiliesPage() {
       <h1>Transcription Factor Families</h1>
       <p className="page-intro">
         Browse stress-responsive transcription factors organized by family. 
-        Click on any TF family to view all genes belonging to that family.
+        For each family, choose whether to open matching genes or TFBS motif info.
       </p>
 
     
 
       <section className="tf-families-grid">
-        {tfFamilies.map((family) => (
-          <Link
-            key={family}
-            to={`/search?tf_family=${encodeURIComponent(family)}`}
-            className="tf-family-card"
-          >
-            <h3>{family}</h3>
-            <p className="tf-meta">View all genes →</p>
-          </Link>
-        ))}
+        {tfFamilies.map((family) => {
+          const isOpen = openFamily === family;
+          return (
+            <article
+              key={family}
+              className={`tf-family-card${isOpen ? " open" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
+              aria-controls={`tf-actions-${encodeURIComponent(family)}`}
+              onClick={() => setOpenFamily((prev) => (prev === family ? null : family))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpenFamily((prev) => (prev === family ? null : family));
+                }
+              }}
+            >
+              <h3>{family}</h3>
+
+              {isOpen && (
+                <div
+                  className="tf-card-actions"
+                  id={`tf-actions-${encodeURIComponent(family)}`}
+                  role="group"
+                  aria-label={`Actions for ${family}`}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/tfbs/${encodeURIComponent(family)}`)}
+                  >
+                    View Info
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/search?tf_family=${encodeURIComponent(family)}`)}
+                  >
+                    View Genes
+                  </button>
+                </div>
+              )}
+
+              <p className="tf-meta">
+                {isOpen ? "Choose an action" : ""}
+              </p>
+            </article>
+          );
+        })}
       </section>
 
       {tfFamilies.length === 0 && (
