@@ -87,7 +87,7 @@ export default function TFFamiliesPage() {
               )}
 
               <p className="tf-meta">
-                {isOpen ? "Choose an action" : ""}
+                {isOpen ? "" : ""}
               </p>
             </article>
           );
