@@ -1,6 +1,6 @@
 name,function,total_occurrences,total_genes,total_crops,crops,zscore_min,zscore_avg,zscore_max,start_min,start_max,end_min,end_max,sample_genes
 ABRE_ABI3_VP1,ABA-responsive element bound by ABI3/VP1 transcription factors,2,2,1,cotton,3.6026,4.0484,4.4943,-667,-123,-658,-114,GohirA02G023500|GohirD09G014850
-AP2/ERF,AP2/ERF transcription factors involved in stress and hormone signaling,1,1,1,wheat,3.2145,3.2145,3.2145,110230,110230,113020,113020,TraesCS1A02G000100
+AP2,AP2/ERF transcription factors involved in stress and hormone signaling,1,1,1,wheat,3.2145,3.2145,3.2145,110230,110230,113020,113020,TraesCS1A02G000100
 AuxRE_ARF,Auxin response element bound by ARF proteins,388,328,2,arabidopsis|cotton,1.6536,2.8976,4.1409,-997,-9,-992,-4,AT1G01010|AT1G01020|AT1G01030|AT1G01040|AT1G01050|Gohir1Z049357|Gohir1Z049825|GohirA01G002700|GohirA01G020600|GohirA01G025950|GohirA01G047300|GohirA01G053700|GohirA01G092700|GohirA01G133800|GohirA01G164000|GohirA01G190400|GohirA02G018400|GohirA02G023500|GohirA02G029700|GohirA02G124250
 bHLH,Basic helix-loop-helix transcription factor binding site,1,1,1,wheat,2.6789,2.6789,2.6789,1592300,1592300,1598800,1598800,TraesCS2D02G015900
 bZIP,Basic leucine zipper transcription factor binding site,2,2,2,maize|rice,2.8934,3.3377,3.7821,10120,4567010,12110,4570200,Os01g0100100|Zm00001eb045670
