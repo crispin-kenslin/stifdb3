@@ -16,6 +16,78 @@ export default function GeneDetailPage() {
       .catch((e) => setError(String(e.message || e)));
   }, [geneId]);
 
+  const downloadCurrentGeneCsv = () => {
+    if (!tfbsData?.motifs?.length) return;
+
+    const rows = tfbsData.motifs.map((motif, index) => ({
+      index: index + 1,
+      gene_id: motif.gene_id ?? geneId,
+      tf_name: motif.name ?? "",
+      start: motif.start ?? "",
+      end: motif.end ?? "",
+      zscore: motif.zscore ?? "",
+      strand_orientation: motif.strand ?? motif.orientation ?? ""
+    }));
+
+    const csvHeaders = ["index", "gene_id", "tf_name", "start", "end", "zscore", "strand_orientation"];
+    const content = [
+      csvHeaders.join(","),
+      ...rows.map((row) =>
+        csvHeaders.map((header) => {
+          const value = row[header] ?? "";
+          const escaped = String(value).replace(/"/g, '""');
+          return `"${escaped}"`;
+        }).join(",")
+      )
+    ].join("\n");
+
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${geneId}-tfbs.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadTfbsPng = () => {
+    const svg = document.querySelector(".gene-graph");
+    if (!svg) return;
+
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svg);
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const width = (svg.viewBox?.baseVal?.width || svg.clientWidth || 1200) * 2;
+      const height = (svg.viewBox?.baseVal?.height || svg.clientHeight || 420) * 2;
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob((pngBlob) => {
+        if (!pngBlob) return;
+        const pngUrl = URL.createObjectURL(pngBlob);
+        const link = document.createElement("a");
+        link.href = pngUrl;
+        link.download = `${geneId}-tfbs-plot.png`;
+        link.click();
+        URL.revokeObjectURL(pngUrl);
+      }, "image/png");
+
+      URL.revokeObjectURL(url);
+    };
+
+    img.src = url;
+  };
+
   if (error) return <main className="container"><p className="error-msg">{error}</p></main>;
   if (!tfbsData) return <main className="container"><p>Loading...</p></main>;
 
@@ -25,17 +97,28 @@ export default function GeneDetailPage() {
     start: motif.start ?? "",
     end: motif.end ?? "",
     zscore: motif.zscore ?? "",
-    strand: motif.strand ?? "",
+    strand: motif.strand ?? motif.orientation ?? "",
   }));
 
   return (
     <main className="container gene-detail-page">
-      <h1>Gene / TF Detail</h1>
+      <header className="gene-page-header">
+        <div>
+          <p className="eyebrow">TFBS profile</p>
+          <h1>{geneId}</h1>
+        </div>
+      </header>
       
       {tfbsData && tfbsData.motifs && tfbsData.motifs.length > 0 && (
         <section className="graph-section">
           <h2>TFBS Visualization</h2>
           <InteractiveGeneGraph data={tfbsData.motifs} geneId={geneId} />
+
+
+           <div className="download-actions">
+          <button type="button" className="secondary-btn" onClick={downloadTfbsPng}>Download PNG</button>
+          <button type="button" className="secondary-btn" onClick={downloadCurrentGeneCsv}>Download CSV</button>
+        </div>
 
           <h3>TFBS Motif Table</h3>
           <div className="table-wrap">
@@ -47,7 +130,7 @@ export default function GeneDetailPage() {
                   <th>Start</th>
                   <th>End</th>
                   <th>Z-Score</th>
-                  <th>Strand</th>
+                  <th>Strand / Orientation</th>
                 </tr>
               </thead>
               <tbody>

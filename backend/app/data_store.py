@@ -231,7 +231,6 @@ class DataStore:
             else list(self.datasets.values())
         )
         tf_values: set[str] = set()
-        chr_values: set[str] = set()
         strand_values: set[str] = set()
         for ds in datasets:
             for rec in ds.records:
@@ -240,16 +239,12 @@ class DataStore:
                         continue
                     norm_key = _canonical_key(key)
                     val = str(value).strip()
-                    # More flexible TF matching
                     if "tf" in norm_key or norm_key in ("tf_name", "tf_family", "tffamily"):
                         tf_values.add(val)
-                    elif "chromosome" in norm_key or norm_key == "chr":
-                        chr_values.add(val)
-                    elif "strand" in norm_key:
+                    elif "strand" in norm_key or "orientation" in norm_key:
                         strand_values.add(val)
         return {
             "tf_families": sorted(tf_values),
-            "chromosomes": sorted(chr_values),
             "strands": sorted(strand_values),
         }
 
@@ -267,6 +262,12 @@ class DataStore:
             key = _canonical_key(col)
             if all(k in key for k in keywords):
                 return col
+
+        if keywords == ["strand"]:
+            for col in columns:
+                key = _canonical_key(col)
+                if "orientation" in key or "strand" in key:
+                    return col
         
         return None
 
@@ -545,8 +546,44 @@ class DataStore:
                     continue
                 selected.append(row)
 
+        tf_families = self._parse_tf_families(tf_family)
+        if tf_families:
+            selected = self._filter_gene_matches_by_tf_family(selected, tf_families)
+
         total = len(selected)
         return selected[offset : offset + limit], total
+
+    @staticmethod
+    def _parse_tf_families(tf_family: str | None) -> list[str]:
+        if not tf_family:
+            return []
+        return [part.strip() for part in str(tf_family).split(",") if part and part.strip()]
+
+    def _filter_gene_matches_by_tf_family(self, rows: list[dict[str, Any]], tf_families: list[str]) -> list[dict[str, Any]]:
+        gene_groups: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            gene_key = None
+            for candidate_key in ("Gene", "Gene ID", "gene", "gene_id", "GeneID"):
+                value = row.get(candidate_key)
+                if value not in (None, ""):
+                    gene_key = str(value).strip()
+                    break
+            if not gene_key:
+                continue
+            gene_groups.setdefault(gene_key, []).append(row)
+
+        filtered: list[dict[str, Any]] = []
+        for gene_rows in gene_groups.values():
+            tf_values = []
+            for row in gene_rows:
+                for key, value in row.items():
+                    key_norm = _canonical_key(key)
+                    if value not in (None, "") and any(alias in key_norm for alias in ("tf", "tf_name", "tf_family", "tffamily")):
+                        tf_values.append(str(value).strip())
+            tf_lower = [value.lower() for value in tf_values if value]
+            if all(any(tf in family.lower() or family.lower() in tf for tf in tf_lower) for family in tf_families):
+                filtered.extend(gene_rows)
+        return filtered
 
     def _matches_filters(
         self,
@@ -557,11 +594,9 @@ class DataStore:
         strand: str | None,
         field: str | None,
     ) -> bool:
-        if tf_family and not self._value_contains(row, ["tf", "tf_name", "tf_family", "tffamily"], tf_family):
-            return False
         if chromosome and not self._value_contains(row, ["chromosome", "chr"], chromosome):
             return False
-        if strand and not self._value_contains(row, ["strand"], strand):
+        if strand and not self._value_contains(row, ["strand", "orientation"], strand):
             return False
         if q:
             if field:

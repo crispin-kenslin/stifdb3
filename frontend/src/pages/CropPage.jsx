@@ -7,8 +7,6 @@ export default function CropPage() {
   const { crop } = useParams();
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
-  const [chromosomes, setChromosomes] = useState([]);
-  const [selectedChromosome, setSelectedChromosome] = useState("");
 
   const capitalizeFirst = (str) => {
     if (!str) return "";
@@ -16,16 +14,8 @@ export default function CropPage() {
   };
 
   useEffect(() => {
-    // Fetch facets to get chromosomes for this crop
-    api.facets(crop).then((facets) => {
-      setChromosomes(facets.chromosomes || []);
-    });
-  }, [crop]);
-
-  useEffect(() => {
     api.data({ 
-      crop, 
-      chromosome: selectedChromosome || undefined,
+      crop,
       limit: "5000", 
       offset: "0" 
     }).then((res) => {
@@ -104,51 +94,24 @@ export default function CropPage() {
       setRows([]);
       setTotal(0);
     });
-  }, [crop, selectedChromosome]);
+  }, [crop]);
 
   return (
-    <main className="container">
-      <h1>Crop: {capitalizeFirst(crop)}</h1>
-      <p>{total} TF records</p>
-      
-      {/* Chromosome Filter */}
-      <div className="filter-section">
-        <label htmlFor="chromosome-select" style={{ marginRight: '10px', fontWeight: 'bold' }}>
-          Filter by Chromosome:
-        </label>
-        <select 
-          id="chromosome-select"
-          value={selectedChromosome} 
-          onChange={(e) => setSelectedChromosome(e.target.value)}
-          style={{ 
-            padding: '8px 12px', 
-            borderRadius: '4px', 
-            border: '2px solid var(--primary-blue)',
-            fontSize: '14px',
-            minWidth: '150px'
-          }}
-        >
-          <option value="">All Chromosomes</option>
-          {chromosomes.map((chr) => (
-            <option key={chr} value={chr}>{chr}</option>
-          ))}
-        </select>
-        {selectedChromosome && (
-          <button 
-            onClick={() => setSelectedChromosome("")}
-            style={{ 
-              marginLeft: '10px', 
-              padding: '8px 12px',
-              cursor: 'pointer'
-            }}
-            className="button-secondary"
-          >
-            Clear Filter
-          </button>
-        )}
-      </div>
+    <main className="container search-page-shell">
+      <header className="search-page-header compact-header">
+        <div>
+          <p className="eyebrow">Crop view</p>
+          <h1>{capitalizeFirst(crop)}</h1>
+        </div>
+        <div className="results-badge">
+          <strong>{total}</strong>
+          <span>TF records</span>
+        </div>
+      </header>
 
-      <DataTable rows={rows} />
+      <div className="search-table-wrap">
+        <DataTable rows={rows} />
+      </div>
     </main>
   );
 }

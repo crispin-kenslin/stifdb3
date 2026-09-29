@@ -9,7 +9,7 @@ export default function HelpPage() {
         <h2>Getting Started</h2>
         <div className="help-content">
           <p>
-            Welcome to the Stress-Induced Transcription Factors Database (STIFDB3). 
+            Welcome to the Stress-responsive Transcription Factors Database (STIFDB3). 
             This database provides comprehensive information about transcription factors 
             involved in stress responses across multiple crop species.
           </p>
@@ -21,7 +21,7 @@ export default function HelpPage() {
         <div className="help-content">
           <h3>1. Search for Genes</h3>
           <p>
-            Use the search bar on the homepage to find genes by ID, TF family, or chromosome. 
+            Use the search bar on the homepage to find genes by ID, TF family, or orientation.
             As you type, matching results will appear instantly.
           </p>
 
@@ -40,7 +40,7 @@ export default function HelpPage() {
           <h3>4. Advanced Search</h3>
           <p>
             Use the Advanced Search page to apply multiple filters including crop type, 
-            TF family, chromosome, and strand orientation.
+            TF family and strand orientation.
           </p>
 
           <h3>5. View Gene Details</h3>

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Link } from "react-router-dom";
 
 export default function DataTable({ rows }) {
@@ -16,6 +17,15 @@ export default function DataTable({ rows }) {
   );
 
   const geneKey = keys.find((k) => k.toLowerCase().replaceAll(" ", "_").includes("gene"));
+
+  const renderCellValue = (value) => {
+    if (value === null || value === undefined || value === "") return "";
+    if (Array.isArray(value)) {
+      return <>{value.map((item, index) => <Fragment key={`${index}-${typeof item === "string" ? item : index}`}>{item}</Fragment>)}</>;
+    }
+    if (typeof value === "string" || typeof value === "number") return String(value);
+    return value;
+  };
 
   return (
     <div className="table-wrap">
@@ -44,7 +54,7 @@ export default function DataTable({ rows }) {
                     </td>
                   );
                 }
-                return <td key={k}>{String(value)}</td>;
+                return <td key={k}>{renderCellValue(value)}</td>;
               })}
             </tr>
           ))}

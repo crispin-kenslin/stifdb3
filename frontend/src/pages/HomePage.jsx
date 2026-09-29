@@ -2,19 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 
-const sliderImageModules = import.meta.glob("../static/images/slider/slider-*.png", {
-  eager: true,
-  import: "default",
-});
-
-const sliderImages = Object.entries(sliderImageModules)
-  .sort(([pathA], [pathB]) => {
-    const indexA = Number((pathA.match(/slider-(\d+)\.png$/) || [])[1] || 0);
-    const indexB = Number((pathB.match(/slider-(\d+)\.png$/) || [])[1] || 0);
-    return indexA - indexB;
-  })
-  .map(([, src]) => src);
-
 export default function HomePage() {
   const [stats, setStats] = useState({ total_genes: 0, total_tfs: 0, total_crops: 0 });
   const [displayStats, setDisplayStats] = useState({ total_genes: 0, total_tfs: 0, total_crops: 0 });
@@ -26,18 +13,7 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (sliderImages.length <= 1) return;
-
-    const intervalId = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % sliderImages.length);
-    }, 5000);
-
-    return () => clearInterval(intervalId);
-  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -166,55 +142,103 @@ export default function HomePage() {
     });
   }
 
-  function goToPrevSlide() {
-    if (sliderImages.length === 0) return;
-    setCurrentSlide((prev) => (prev - 1 + sliderImages.length) % sliderImages.length);
-  }
-
-  function goToNextSlide() {
-    if (sliderImages.length === 0) return;
-    setCurrentSlide((prev) => (prev + 1) % sliderImages.length);
-  }
-
   return (
     <main className="container homepage">
-      {/* Hero Section */}
-      <section className="hero-new">
-        <h1 className="main-title">Stress-Responsive Transcription Factors Database</h1>
-        <p className="subtitle">Explore stress-responsive transcription factors across multiple crop species</p>
-        <p className="body-text">STIFDB3 is a collection of Stress Responsive Transcription Factors of 13 crops.</p>
+      <section className="hero-science">
+        <div className="hero-copy">
+          <p className="eyebrow">Plant stress transcriptomics</p>
+          <h1 className="main-title">Stress-responsive TranscrIption Factors DataBase</h1>
+          <p className="body-text">
+            STIFDB3 brings together transcription factor families, crop-specific gene records,
+            and stress-response biology in a single research-ready interface.
+          </p>
 
-        <div className="hero-media-stack">
-          <div className="hero-slider" aria-label="Homepage image slider">
-            {sliderImages.length > 0 ? (
-              <>
-                <img
-                  key={currentSlide}
-                  src={sliderImages[currentSlide]}
-                  alt={`STIFDB3 slider ${currentSlide + 1}`}
-                  className="hero-slider-image"
-                />
-              </>
-            ) : (
-              <div className="slider-empty-state">Add images in src/static/images/slider (slider-1.png, slider-2.png...)</div>
-            )}
+          <div className="hero-actions">
+            <Link to="/browse" className="primary-link">Explore crops</Link>
+            <Link to="/search" className="secondary-link">Search genes</Link>
+          </div>
+        </div>
+
+        <div className="hero-visual" aria-hidden="true">
+          <div className="signal-grid" />
+          <div className="signal-wave wave-one" />
+          <div className="signal-wave wave-two" />
+          <div className="signal-wave wave-three" />
+
+          <div className="science-orbit">
+            {crops.slice(0, 6).map((crop, index) => {
+              const angle = (index * 360) / Math.max(crops.slice(0, 6).length, 1) - 90;
+              const radius = 170;
+              const x = Math.cos((angle * Math.PI) / 180) * radius;
+              const y = Math.sin((angle * Math.PI) / 180) * radius;
+              return (
+                <span
+                  key={crop}
+                  className="orbit-badge"
+                  style={{
+                    left: `calc(50% + ${x}px)`,
+                    top: `calc(50% + ${y}px)`,
+                    transform: 'translate(-50%, -50%)',
+                    animationDelay: `${index * 0.25}s`,
+                  }}
+                >
+                  {capitalizeFirst(crop)}
+                </span>
+              );
+            })}
           </div>
 
+          <div className="database-visual">
+            <div className="network-ring ring-one" />
+            <div className="network-ring ring-two" />
+            <div className="network-ring ring-three" />
+            <div className="gene-node node-a" />
+            <div className="gene-node node-b" />
+            <div className="gene-node node-c" />
+            <div className="gene-node node-d" />
+            <div className="dna-helix">
+              <span className="helix-strand left" />
+              <span className="helix-strand right" />
+            </div>
+            <div className="core-hub">
+              <span>STIF</span>
+            </div>
+          </div>
+
+          <div className="floating-node node-one">Abiotic</div>
+          <div className="floating-node node-two">Tolerance</div>
+          <div className="floating-node node-three">Regulation</div>
+          <div className="floating-node node-four">Defense</div>
         </div>
       </section>
 
-      {/* Interactive Search Bar */}
       <section className="search-section">
         <form onSubmit={handleSearchSubmit} className="search-container">
           <input
             type="text"
             className="search-input-large"
-            placeholder="Search Gene ID, TF Family, Chromosome..."
+            placeholder="Search Gene ID, TF family, orientation..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <button type="submit" className="search-button">Search</button>
         </form>
+
+        <div className="micro-metrics">
+          <Link to="/search" className="metric-pill clickable">
+            <strong>{loadingStats ? "..." : displayStats.total_genes.toLocaleString()}</strong>
+            <span>Genes</span>
+          </Link>
+          <Link to="/tf-families" className="metric-pill clickable">
+            <strong>{loadingStats ? "..." : displayStats.total_tfs}</strong>
+            <span>TF families</span>
+          </Link>
+          <Link to="/crops" className="metric-pill clickable">
+            <strong>{loadingStats ? "..." : displayStats.total_crops}</strong>
+            <span>Crops</span>
+          </Link>
+        </div>
+
         {showResults && searchResults.length > 0 && (
           <div className="search-results-dropdown">
             {searchResults.map((item) => {
@@ -235,24 +259,6 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Stats Cards with Animation - Now Clickable */}
-      <section className="stats-grid">
-        <Link to="/search" className="stat-card clickable">
-          <div className="stat-number animated">
-            {loadingStats ? "..." : displayStats.total_genes.toLocaleString()}
-          </div>
-          <div className="stat-label">Total Genes</div>
-        </Link>
-        <Link to="/tf-families" className="stat-card clickable">
-          <div className="stat-number animated">{loadingStats ? "..." : displayStats.total_tfs}</div>
-          <div className="stat-label">TF Families</div>
-        </Link>
-        <Link to="/crops" className="stat-card clickable">
-          <div className="stat-number animated">{loadingStats ? "..." : displayStats.total_crops}</div>
-          <div className="stat-label">Crop Species</div>
-        </Link>
-      </section>
-
       {loadError && (
         <section className="card" style={{ marginTop: "1rem" }}>
           <p className="error-msg">{loadError}</p>
@@ -260,22 +266,15 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Browse Section Title */}
-      <section className="browse-header">
-        <h2>Browse Database</h2>
-      </section>
-
-      {/* Side-by-Side Circular Navigation */}
       <section className="circular-navigation-wrapper">
-        {/* Crops Circle */}
         <div className="circle-section">
-          <h3 className="circle-title">Browse by Crops</h3>
+          <h3 className="circle-title">Select by crops</h3>
           <div className="circle-container">
             <div className="center-circle">
               <span className="center-text">CROPS</span>
             </div>
             {!loadingCrops && crops.map((crop, index) => {
-              const angle = (index * 360) / crops.length - 90;
+              const angle = (index * 360) / Math.max(crops.length, 1) - 90;
               const radius = 175;
               const x = Math.cos((angle * Math.PI) / 180) * radius;
               const y = Math.sin((angle * Math.PI) / 180) * radius;
@@ -302,9 +301,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Stress Circle */}
         <div className="circle-section">
-          <h3 className="circle-title">Browse by Stress</h3>
+          <h3 className="circle-title">Select by stress</h3>
           <div className="circle-container">
             <div className="center-circle stress">
               <span className="center-text">STRESS</span>
@@ -333,18 +331,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quick Links */}
-      <section className="quick-links">
-        <div className="link-grid">
-          <Link to="/search" className="quick-link-card">
-            <h3>Advanced Search</h3>
-            <p>Search with filters and export results</p>
-          </Link>
-          <Link to="/help" className="quick-link-card">
-            <h3>Help & Documentation</h3>
-            <p>Learn how to use the database effectively</p>
-          </Link>
-        </div>
+      <section className="explore-strip">
+        <div className="explore-pill" onClick={() => navigate("/browse")}>Browse crops</div>
+        <div className="explore-pill" onClick={() => navigate("/search?q=stress")}>Stress response</div>
+        <div className="explore-pill" onClick={() => navigate("/help")}>Methods</div>
+        <div className="explore-pill" onClick={() => navigate("/tf-families")}>TF families</div>
       </section>
     </main>
   );

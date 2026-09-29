@@ -17,15 +17,9 @@ export default function InteractiveGeneGraph({ data, geneId }) {
     // Clear previous content
     svg.innerHTML = "";
 
-    // Calculate bounds
-    const starts = data.map((d) => Number(d.start));
-    const ends = data.map((d) => Number(d.end));
-    const xmin = Math.min(...starts);
-    const xmax = Math.max(...ends);
-    const span = Math.max(1, xmax - xmin);
-    const padding = Math.min(100, Math.max(20, span * 0.05));
-    const xStart = xmin - padding;
-    const xEnd = xmax + padding;
+    // Keep axis fixed at 0 to -1000 for a stable genomic reference while preserving the motif colors.
+    const xStart = -1000;
+    const xEnd = 0;
 
     // Assign lanes to avoid overlap with an extra bp gap so boxes stay visually separated.
     const regions = data.map((d) => ({ ...d }));
@@ -99,9 +93,31 @@ export default function InteractiveGeneGraph({ data, geneId }) {
     lineRect.setAttribute("stroke-width", 1);
     svg.appendChild(lineRect);
 
+    const zeroMarkerX = scale(0);
+    const littleLogo = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    const logoRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    logoRect.setAttribute("x", zeroMarkerX - 15);
+    logoRect.setAttribute("y", yTop - 38);
+    logoRect.setAttribute("width", 30);
+    logoRect.setAttribute("height", 18);
+    logoRect.setAttribute("rx", 6);
+    logoRect.setAttribute("fill", "#0D47A1");
+    littleLogo.appendChild(logoRect);
+
+    const logoText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    logoText.setAttribute("x", zeroMarkerX);
+    logoText.setAttribute("y", yTop - 25);
+    logoText.setAttribute("text-anchor", "middle");
+    logoText.setAttribute("font-size", "8");
+    logoText.setAttribute("font-weight", "700");
+    logoText.setAttribute("fill", "#E3F2FD");
+    logoText.textContent = "STIF";
+    littleLogo.appendChild(logoText);
+    svg.appendChild(littleLogo);
+
     // Tick marks and labels
-    const tickStep = getTickStep(xStart, xEnd, width - margin.left - margin.right);
-    for (let x = Math.ceil(xStart / tickStep) * tickStep; x <= xEnd; x += tickStep) {
+    const tickStep = 200;
+    for (let x = 0; x >= -1000; x -= tickStep) {
       const xPos = scale(x);
       const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
       tick.setAttribute("x1", xPos);
@@ -215,7 +231,7 @@ export default function InteractiveGeneGraph({ data, geneId }) {
         outsideNameText.setAttribute("x", outsideX);
         outsideNameText.setAttribute("y", y - 8);
         outsideNameText.setAttribute("text-anchor", "middle");
-        outsideNameText.setAttribute("font-size", "10");
+        outsideNameText.setAttribute("font-size", "12");
         outsideNameText.setAttribute("font-weight", "bold");
         outsideNameText.setAttribute("fill", "#1a1a1a");
         outsideNameText.textContent = r.name;
@@ -233,7 +249,7 @@ export default function InteractiveGeneGraph({ data, geneId }) {
           zscoreText.setAttribute("x", zX);
           zscoreText.setAttribute("y", y + motifHeight + 16);
           zscoreText.setAttribute("text-anchor", "middle");
-          zscoreText.setAttribute("font-size", "10");
+          zscoreText.setAttribute("font-size", "11");
           zscoreText.setAttribute("fill", "#555");
           zscoreText.textContent = `Z: ${numericZ.toFixed(2)}`;
           group.appendChild(zscoreText);
@@ -256,9 +272,12 @@ export default function InteractiveGeneGraph({ data, geneId }) {
         const tooltipWidth = Math.max(200, maxChars * 7.2 + 18);
         const tooltipHeight = 64;
 
-        const svgRect = svg.getBoundingClientRect();
-        const mouseX = evt.clientX - svgRect.left;
-        const mouseY = evt.clientY - svgRect.top;
+        const pointer = svg.createSVGPoint();
+        pointer.x = evt.clientX;
+        pointer.y = evt.clientY;
+        const svgPointer = pointer.matrixTransform(svg.getScreenCTM().inverse());
+        const mouseX = svgPointer.x;
+        const mouseY = svgPointer.y;
         const desiredX = mouseX + 12;
         const desiredY = mouseY - tooltipHeight - 12;
         const tooltipX = Math.max(8, Math.min(desiredX, width - tooltipWidth - 8));
@@ -310,28 +329,12 @@ export default function InteractiveGeneGraph({ data, geneId }) {
       svg.appendChild(group);
     });
 
-    // Arrow at the end
-    const arrowX = scale(xEnd) - 20;
-    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-    arrow.setAttribute("points", `${arrowX},${yTop + 10} ${arrowX + 15},${yTop + 10} ${arrowX + 10},${yTop + 5} ${arrowX + 10},${yTop + 15}`);
-    arrow.setAttribute("fill", "#333");
-    svg.appendChild(arrow);
     svg.appendChild(tooltipGroup);
 
-  }, [data, geneId, navigate]);
+    // Arrow at the end
+    
 
-  function getTickStep(xmin, xmax, axisPixels) {
-    const span = Math.abs(xmax - xmin);
-    const candidates = [20, 50, 100, 200, 500, 1000, 2000, 5000];
-    for (const step of candidates) {
-      const tickCount = Math.max(1, Math.ceil(span / step));
-      const pxPerTick = axisPixels / tickCount;
-      if (pxPerTick >= 80) {
-        return step;
-      }
-    }
-    return 10000;
-  }
+  }, [data, geneId, navigate]);
 
   function formatBp(x) {
     return `${Math.round(x)} bp`;

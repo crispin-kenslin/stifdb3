@@ -15,11 +15,6 @@ export default function Navbar() {
       <div className="container nav-inner">
         <div className="nav-left">
           <Link to="/" className="nav-logo-link" title="Home">
-            <img 
-              src={stifLogo} 
-              alt="STIFDB3" 
-              className="nav-logo-img"
-            />
           </Link>
           <Link to="/" className="brand">STIFDB3</Link>
         </div>
