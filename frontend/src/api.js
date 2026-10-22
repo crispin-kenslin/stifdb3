@@ -84,6 +84,11 @@ export const api = {
   gene: (geneId) => request(`/gene/${encodeURIComponent(geneId)}`),
   geneTFBS: (geneId) => request(`/gene/${encodeURIComponent(geneId)}/tfbs`),
   tfbsDetail: (tfbsName) => request(`/tfbs/${encodeURIComponent(tfbsName)}`),
+  predictStifal: (payload) => request("/predict/stifal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  }),
   reload: async () => {
     const res = await fetch(`${PRIMARY_API_BASE}/reload`, { method: 'POST' });
     if (!res.ok) throw new Error(`Reload failed: ${res.status}`);

@@ -23,6 +23,7 @@ export default function Navbar() {
           <Link to="/">Home</Link>
           <Link to="/browse">Browse</Link>
           <Link to="/search">Search</Link>
+          <Link to="/predict">Predict</Link>
           <Link to="/help">Help</Link>
         </nav>
 

@@ -7,9 +7,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 
 from app.data_store import DataStore
+from app.stifal_engine import predict_sequence
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -29,6 +31,12 @@ def resolve_data_dir() -> Path:
 
 DATA_DIR = resolve_data_dir()
 
+
+class StifalPredictionRequest(BaseModel):
+    sequence: str = Field(max_length=20000)
+    sequence_name: str = Field(default="Submitted sequence", max_length=100)
+    minimum_zscore: float = Field(default=1.0, ge=0, le=20)
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     store.load()
@@ -45,6 +53,20 @@ app.add_middleware(
 )
 
 store = DataStore(DATA_DIR)
+
+
+@app.post("/predict/stifal")
+def predict_stifal(request: StifalPredictionRequest) -> dict:
+    try:
+        return predict_sequence(
+            request.sequence,
+            request.sequence_name,
+            minimum_zscore=request.minimum_zscore,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=503, detail="STIFAL consensus data is unavailable.") from error
 
 
 @app.get("/health")

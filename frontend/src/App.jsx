@@ -9,6 +9,7 @@ import HelpPage from "./pages/HelpPage";
 import CropsListPage from "./pages/CropsListPage";
 import TFFamiliesPage from "./pages/TFFamiliesPage";
 import BrowsePage from "./pages/BrowsePage";
+import StifalPredictPage from "./pages/StifalPredictPage";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/tf-families" element={<TFFamiliesPage />} />
         <Route path="/gene/:geneId" element={<GeneDetailPage />} />
         <Route path="/tfbs/:tfbsName" element={<TFBSPage />} />
+        <Route path="/predict" element={<StifalPredictPage />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -5,6 +5,7 @@ services:
     container_name: tf-backend
     volumes:
       - ./data:/data
+      - ./stifal:/stifal:ro
     environment:
       - PYTHONUNBUFFERED=1
     ports:
