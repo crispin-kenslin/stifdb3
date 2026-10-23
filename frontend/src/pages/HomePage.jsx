@@ -205,10 +205,27 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="floating-node node-one">Abiotic</div>
-          <div className="floating-node node-two">Tolerance</div>
-          <div className="floating-node node-three">Regulation</div>
-          <div className="floating-node node-four">Defense</div>
+          <div className="motif-scan-track">
+            <span className="motif-track-label">STIFAL</span>
+            <div className="motif-track-sequence" aria-hidden="true">
+              <span>ACGTTGAC</span>
+              <span className="motif-hit">CACGTG</span>
+              <span>GCTAACGT</span>
+              <span className="motif-hit">TTGACC</span>
+              <span>AGTCCGTA</span>
+              <span>ACGTTGAC</span>
+              <span className="motif-hit">CACGTG</span>
+              <span>GCTAACGT</span>
+              <span className="motif-hit">TTGACC</span>
+              <span>AGTCCGTA</span>
+              <span>ACGTTGAC</span>
+              <span className="motif-hit">CACGTG</span>
+              <span>GCTAACGT</span>
+              <span>AGT</span>
+            </div>
+            <span className="motif-scan-cursor" />
+          </div>
+
         </div>
       </section>
 
@@ -269,24 +286,26 @@ export default function HomePage() {
       <section className="circular-navigation-wrapper">
         <div className="circle-section">
           <h3 className="circle-title">Select by crops</h3>
-          <div className="circle-container">
+          <div className="circle-container orbit-picker crop-orbit-picker">
+            <div className="orbit-guide orbit-guide-one" />
+            <div className="orbit-guide orbit-guide-two" />
             <div className="center-circle">
               <span className="center-text">CROPS</span>
             </div>
             {!loadingCrops && crops.map((crop, index) => {
               const angle = (index * 360) / Math.max(crops.length, 1) - 90;
-              const radius = 175;
+              const radius = 123;
               const x = Math.cos((angle * Math.PI) / 180) * radius;
               const y = Math.sin((angle * Math.PI) / 180) * radius;
               return (
                 <Link
                   key={crop}
                   to={`/crop/${encodeURIComponent(crop)}`}
-                  className="orbit-item"
+                  className="orbit-item crop-orbit-item"
                   style={{
                     left: `calc(50% + ${x}px)`,
                     top: `calc(50% + ${y}px)`,
-                    transform: 'translate(-50%, -50%)',
+                    transform: "translate(-50%, -50%)",
                   }}
                 >
                   {capitalizeFirst(crop)}
@@ -294,7 +313,7 @@ export default function HomePage() {
               );
             })}
             {!loadingCrops && crops.length === 0 && (
-              <div className="orbit-item" style={{ left: "50%", top: "12%", transform: "translate(-50%, -50%)" }}>
+              <div className="orbit-item crop-orbit-item" style={{ left: "50%", top: "15%" }}>
                 No crops loaded
               </div>
             )}
@@ -303,28 +322,30 @@ export default function HomePage() {
 
         <div className="circle-section">
           <h3 className="circle-title">Select by stress</h3>
-          <div className="circle-container">
+          <div className="circle-container orbit-picker stress-orbit-picker">
+            <div className="orbit-guide orbit-guide-one" />
+            <div className="orbit-guide orbit-guide-two" />
             <div className="center-circle stress">
               <span className="center-text">STRESS</span>
             </div>
             {stressTypes.map((stress, index) => {
               const angle = (index * 360) / stressTypes.length - 90;
-              const radius = 175;
+              const radius = 112;
               const x = Math.cos((angle * Math.PI) / 180) * radius;
               const y = Math.sin((angle * Math.PI) / 180) * radius;
               return (
-                <div
+                <Link
                   key={stress}
+                  to={`/search?q=${encodeURIComponent(stress)}`}
                   className="orbit-item stress"
                   style={{
                     left: `calc(50% + ${x}px)`,
                     top: `calc(50% + ${y}px)`,
-                    transform: 'translate(-50%, -50%)',
+                    transform: "translate(-50%, -50%)",
                   }}
-                  onClick={() => navigate(`/search?q=${encodeURIComponent(stress)}`)}
                 >
                   {stress}
-                </div>
+                </Link>
               );
             })}
           </div>

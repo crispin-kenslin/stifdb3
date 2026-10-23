@@ -83,6 +83,7 @@ export const api = {
   search: (params) => request(`/search?${toQueryString(params)}`),
   gene: (geneId) => request(`/gene/${encodeURIComponent(geneId)}`),
   geneTFBS: (geneId) => request(`/gene/${encodeURIComponent(geneId)}/tfbs`),
+  geneUpstreamSequence: (geneId) => request(`/gene/${encodeURIComponent(geneId)}/upstream-sequence`),
   tfbsDetail: (tfbsName) => request(`/tfbs/${encodeURIComponent(tfbsName)}`),
   predictStifal: (payload) => request("/predict/stifal", {
     method: "POST",

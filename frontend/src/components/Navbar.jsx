@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import capsLogo from "../static/images/caps-logo.webp";
-import stifLogo from "../static/images/stif-logo.png";
+import stifLogo from "../static/images/STIFDB3-logo.png";
 
 /*
  * LOGO SETUP:
@@ -14,9 +14,13 @@ export default function Navbar() {
     <header className="navbar">
       <div className="container nav-inner">
         <div className="nav-left">
-          <Link to="/" className="nav-logo-link" title="Home">
+          <Link to="/" className="nav-logo-link stif-logo-link" title="STIFDB3 home">
+            <img
+              src={stifLogo}
+              alt="STIFDB3 logo"
+              className="nav-logo-stif"
+            />
           </Link>
-          <Link to="/" className="brand">STIFDB3</Link>
         </div>
         
         <nav className="nav-links">

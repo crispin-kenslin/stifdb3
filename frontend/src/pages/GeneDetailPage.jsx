@@ -6,6 +6,9 @@ import InteractiveGeneGraph from "../components/InteractiveGeneGraph";
 export default function GeneDetailPage() {
   const { geneId } = useParams();
   const [tfbsData, setTfbsData] = useState(null);
+  const [upstreamSequence, setUpstreamSequence] = useState(null);
+  const [sequenceLoading, setSequenceLoading] = useState(true);
+  const [sequenceError, setSequenceError] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -14,6 +17,23 @@ export default function GeneDetailPage() {
         setTfbsData(tfbs);
       })
       .catch((e) => setError(String(e.message || e)));
+
+    setUpstreamSequence(null);
+    setSequenceError("");
+    setSequenceLoading(true);
+    api
+      .geneUpstreamSequence(geneId)
+      .then((sequenceData) => setUpstreamSequence(sequenceData))
+      .catch((e) => {
+        let message = String(e.message || e);
+        try {
+          message = JSON.parse(message).detail || message;
+        } catch {
+          // Keep the original API message when it is not JSON.
+        }
+        setSequenceError(message);
+      })
+      .finally(() => setSequenceLoading(false));
   }, [geneId]);
 
   const downloadCurrentGeneCsv = () => {
@@ -88,8 +108,7 @@ export default function GeneDetailPage() {
     img.src = url;
   };
 
-  if (error) return <main className="container"><p className="error-msg">{error}</p></main>;
-  if (!tfbsData) return <main className="container"><p>Loading...</p></main>;
+  if (!tfbsData && !error) return <main className="container"><p>Loading...</p></main>;
 
   const motifRows = (tfbsData?.motifs || []).map((motif, index) => ({
     index: index + 1,
@@ -108,10 +127,39 @@ export default function GeneDetailPage() {
           <h1>{geneId}</h1>
         </div>
       </header>
+
+      <section className="gene-sequence-panel" aria-labelledby="gene-sequence-title">
+        <header className="gene-sequence-header">
+          <div>
+            <p className="eyebrow">Upstream DNA · {upstreamSequence?.crop || "gene sequence"}</p>
+            <h2 id="gene-sequence-title">1,000 bp upstream sequence</h2>
+          </div>
+          {upstreamSequence && (
+            <div className="gene-sequence-length">
+              <strong>{upstreamSequence.length.toLocaleString()}</strong>
+              <span>bp</span>
+            </div>
+          )}
+        </header>
+        {sequenceLoading ? (
+          <p className="gene-sequence-state">Retrieving the gene's upstream sequence…</p>
+        ) : upstreamSequence ? (
+          <>
+            <p className="gene-sequence-source">{upstreamSequence.header}</p>
+            <pre className="gene-sequence-code">{upstreamSequence.sequence}</pre>
+          </>
+        ) : (
+          <p className="gene-sequence-state" role="status">
+            Upstream sequence is not available for this gene yet. {sequenceError}
+          </p>
+        )}
+      </section>
+
+      {error && <p className="error-msg" role="alert">{error}</p>}
       
       {tfbsData && tfbsData.motifs && tfbsData.motifs.length > 0 && (
         <section className="graph-section">
-          <h2>TFBS Visualization</h2>
+          <h2><center>TFBS Map - Visualization of Transcription Factor Binding Sites</center></h2>
           <InteractiveGeneGraph data={tfbsData.motifs} geneId={geneId} />
 
 

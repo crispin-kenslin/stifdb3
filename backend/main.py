@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from app.data_store import DataStore
 from app.stifal_engine import predict_sequence
+from app.upstream_sequences import UpstreamSequenceStore
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 
 store = DataStore(DATA_DIR)
+upstream_sequences = UpstreamSequenceStore(DATA_DIR / "sequences")
 
 
 @app.post("/predict/stifal")
@@ -152,6 +154,25 @@ def search(
 @app.get("/gene/{gene_id}/tfbs")
 def gene_tfbs_data(gene_id: str) -> dict:
     return store.get_gene_tfbs(gene_id)
+
+
+@app.get("/gene/{gene_id}/upstream-sequence")
+def gene_upstream_sequence(gene_id: str) -> dict:
+    gene = store.find_gene(gene_id)
+    if not gene:
+        raise HTTPException(status_code=404, detail=f"Gene not found: {gene_id}")
+
+    crop = str(gene["_crop"])
+    try:
+        record = upstream_sequences.get_sequence(crop, gene_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No upstream FASTA sequence is available for {gene_id} in {crop}.",
+        )
+    return {"crop": crop, **record}
 
 
 @app.get("/tfbs/{tfbs_name}")

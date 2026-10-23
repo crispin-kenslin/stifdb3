@@ -84,7 +84,7 @@ h1, h2, h3, h4, .brand {
 }
 
 h1 {
-  font-size: clamp(2.7rem, 4vw, 5rem);
+  font-size: 2.5rem;
   line-height: 0.96;
   margin: 0 0 0.8rem;
   text-align: -webkit-center;
@@ -135,9 +135,11 @@ a {
 
 /* ============ NAVBAR STYLES ============ */
 .navbar {
+  --navbar-height: 6rem;
   position: static;
   top: 0;
   z-index: 1000;
+  height: var(--navbar-height);
   background: rgba(250, 252, 255, 0.82);
   border-bottom: 1px solid rgba(17, 64, 104, 0.12);
   box-shadow: 0 10px 28px rgba(17, 52, 84, 0.06);
@@ -149,13 +151,16 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 54px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 1rem;
 }
 
 .nav-left {
   display: flex;
   align-items: center;
   gap: 1rem;
+  height: 100%;
 }
 
 .nav-logo-link {
@@ -163,16 +168,26 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 64px;
+  height: 100%;
+  flex: 0 0 auto;
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .nav-logo-img {
   height: 100%;
   width: auto;
-  max-height: 62px;
   object-fit: contain;
   border-radius: 8px;
+}
+
+
+.nav-logo-stif {
+  height: 100%;
+  width: auto;
+  max-height: 100%;
+  max-width: min(25vw, 260px);
+  object-fit: contain;
+  border-radius: 0;
 }
 
 .lab-logo-link {
@@ -718,27 +733,6 @@ a {
     transform: translate(-50%, -50%) scale(1.04);
   }
 }
-
-.floating-node {
-  position: absolute;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.55rem 0.85rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(17, 42, 58, 0.1);
-  color: var(--primary-dark);
-  font-size: 0.72rem;
-  font-weight: 700;
-  box-shadow: 0 12px 22px rgba(17, 42, 58, 0.06);
-  animation: floatBadge 7s ease-in-out infinite;
-}
-
-.node-one { top: 14%; right: 18%; }
-.node-two { bottom: 18%; right: 10%; animation-delay: 1s; }
-.node-three { bottom: 22%; left: 12%; animation-delay: 2s; }
-.node-four { top: 20%; left: 16%; animation-delay: 3s; }
 
 .search-section {
   position: relative;
@@ -1412,6 +1406,97 @@ a {
   width: 98vw;
   padding-left: 1rem;
   padding-right: 1rem;
+}
+
+.gene-sequence-panel {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 1.5rem;
+  padding: 1.25rem 1.4rem 1.4rem;
+  border: 1px solid #c6d2c6;
+  border-left: 5px solid #426c51;
+  border-radius: 5px;
+  background:
+    linear-gradient(105deg, rgba(226, 237, 221, 0.8), rgba(250, 251, 246, 0.96) 36%),
+    #f7f9f3;
+  box-shadow: 0 10px 28px rgba(34, 67, 45, 0.07);
+}
+
+.gene-sequence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(56, 91, 66, 0.18);
+}
+
+.gene-sequence-header .eyebrow {
+  margin-bottom: 0.25rem;
+  color: #426c51;
+}
+
+.gene-sequence-header h2 {
+  margin: 0;
+  font-family: ui-serif, Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.gene-sequence-length {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  color: #31533d;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.gene-sequence-length strong {
+  font-size: 1.4rem;
+}
+
+.gene-sequence-source {
+  margin: 0.85rem 0 0.45rem;
+  color: #526b58;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.gene-sequence-code {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  overflow: visible;
+  border: 1px solid rgba(56, 91, 66, 0.14);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #203c2b;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.75;
+  letter-spacing: 0.04em;
+  user-select: text;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.gene-sequence-state {
+  margin: 0.9rem 0 0;
+  color: #526358;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 620px) {
+  .gene-sequence-panel {
+    padding: 1rem;
+  }
+
+  .gene-sequence-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .gene-sequence-code {
+    font-size: 0.74rem;
+  }
 }
 
 .gene-detail-page .graph-section {
@@ -2194,15 +2279,30 @@ tr:hover td {
   }
 
   .nav-inner {
+    height: auto;
+    min-height: 0;
+    padding: 0.6rem 1rem;
     flex-direction: column;
     gap: 1rem;
   }
 
   .nav-left {
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
+    height: 52px;
   }
+
+  .navbar {
+    height: auto;
+  }
+
+  .nav-logo-link {
+    height: 52px;
+  }
+
+  .nav-logo-stif {
+    max-width: min(60vw, 260px);
+  }
+
+
 
   .nav-links {
     gap: 1rem;
@@ -2280,6 +2380,489 @@ tr:hover td {
 
   .brand {
     font-size: 1.5rem;
+  }
+}
+
+/* Compact home dashboard: keep the first screen complete on desktop. */
+.container.homepage {
+  display: grid;
+  grid-template-rows: minmax(250px, 0.9fr) auto minmax(300px, 1fr) auto;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  height: calc(100svh - var(--navbar-height, 6rem));
+  min-height: 0;
+  padding: 0.5rem 1.1rem 0.6rem;
+  overflow: visible;
+}
+
+.homepage .hero-science {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 1rem;
+  min-height: 0;
+  padding: 0;
+}
+
+.homepage .hero-copy {
+  align-items: flex-start;
+  max-width: 680px;
+  text-align: left;
+}
+
+.homepage .hero-copy .eyebrow {
+  margin-bottom: 0.55rem;
+  font-size: 0.92rem;
+}
+
+.homepage .main-title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2.4rem, 3.5vw, 3.8rem);
+  line-height: 1.04;
+  text-align: left;
+}
+
+.homepage .body-text {
+  max-width: 600px;
+  margin-bottom: 0.75rem;
+  font-size: 1.08rem;
+  line-height: 1.55;
+}
+
+.homepage .hero-actions {
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.homepage .primary-link,
+.homepage .secondary-link {
+  min-height: 46px;
+  padding: 0.65rem 1.1rem;
+  font-size: 1rem;
+  border-radius: 6px;
+}
+
+.homepage .hero-visual {
+  min-height: 0;
+  height: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+}
+
+.homepage .science-orbit {
+  transform: scale(0.52);
+}
+
+.homepage .wave-three {
+  width: 230px;
+  height: 230px;
+}
+
+.homepage .database-visual {
+  top: 39%;
+  width: min(53%, 195px);
+}
+
+.motif-scan-track {
+  position: absolute;
+  z-index: 5;
+  right: 8%;
+  bottom: 0.55rem;
+  left: 8%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  padding: 0.45rem 0.65rem 0.55rem;
+  border: 1px solid rgba(25, 74, 112, 0.18);
+  border-radius: 4px;
+  background: rgba(250, 252, 249, 0.9);
+  box-shadow: 0 5px 14px rgba(27, 58, 78, 0.08);
+}
+
+.motif-track-label {
+  color: #000000;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.motif-track-sequence {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  color: #607281;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.motif-track-sequence span {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.motif-track-sequence .motif-hit {
+  padding: 0.14rem 0.25rem;
+  border-radius: 2px;
+  background: #e5eedc;
+  color: #315a3d;
+  font-weight: 800;
+}
+
+.motif-scan-cursor {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 30%;
+  width: 1px;
+  background: rgba(194, 91, 56, 0.85);
+  animation: motifScan 5s ease-in-out infinite alternate;
+}
+
+@keyframes motifScan {
+  from { left: 30%; }
+  to { left: 92%; }
+}
+
+.homepage .search-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr);
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+}
+
+.homepage .search-container {
+  width: 100%;
+  max-width: none;
+  gap: 0.5rem;
+  padding: 0.4rem;
+  border-radius: 7px;
+}
+
+.homepage .search-input-large {
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  font-size: 1rem;
+  border-radius: 5px;
+}
+
+.homepage .search-button {
+  padding: 0.7rem 1.1rem;
+  font-size: 1rem;
+  border-radius: 5px;
+}
+
+.homepage .micro-metrics {
+  width: 100%;
+  max-width: none;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.homepage .metric-pill {
+  gap: 0.25rem;
+  padding: 0.7rem 0.45rem;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.homepage .metric-pill strong {
+  font-size: 1.55rem;
+}
+
+.homepage .metric-pill span {
+  font-size: 0.84rem;
+}
+
+.homepage .circular-navigation-wrapper {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 1.2rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0.5rem;
+}
+
+.homepage .circle-section {
+  min-width: 0;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+}
+
+.homepage .circle-title {
+  margin: 0 0 0.55rem;
+  font-family: Cambria, 'Times New Roman', serif;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.homepage .orbit-picker {
+  position: relative;
+  width: min(100%, 390px);
+  height: 340px;
+  margin: 0;
+  overflow: visible;
+}
+
+.homepage .orbit-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 270px;
+  height: 270px;
+  border: 1px solid rgba(45, 95, 153, 0.17);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.homepage .orbit-guide-two {
+  width: 205px;
+  height: 205px;
+  border-style: dashed;
+  border-color: rgba(45, 95, 153, 0.12);
+  animation: orbitGuide 32s linear infinite;
+}
+
+.homepage .stress-orbit-picker .orbit-guide {
+  border-color: rgba(201, 86, 78, 0.2);
+}
+
+.homepage .stress-orbit-picker .orbit-guide-two {
+  border-color: rgba(201, 86, 78, 0.15);
+}
+
+@keyframes orbitGuide {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.homepage .orbit-picker .center-circle {
+  width: 96px;
+  height: 96px;
+}
+
+.homepage .orbit-picker .center-text {
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+}
+
+.homepage .orbit-picker .orbit-item {
+  z-index: 2;
+  width: 92px;
+  height: 92px;
+  padding: 0.45rem;
+  border-width: 1px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--primary-dark);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 5px 14px rgba(17, 42, 58, 0.12);
+}
+
+.homepage .crop-orbit-item {
+  border-color: rgba(45, 95, 153, 0.38);
+  animation: none;
+}
+
+.homepage .stress-orbit-picker .orbit-item {
+  border-color: rgba(201, 86, 78, 0.38);
+  animation: none;
+}
+
+.homepage .orbit-picker .orbit-item:hover {
+  z-index: 4;
+  background: #edf4fb;
+  box-shadow: 0 8px 18px rgba(17, 42, 58, 0.17);
+}
+
+.homepage .stress-orbit-picker .orbit-item:hover {
+  background: #fff1ef;
+}
+
+.homepage .explore-strip {
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.homepage .explore-pill {
+  padding: 0.52rem 0.8rem;
+  border-radius: 5px;
+  font-size: 0.84rem;
+}
+
+@media (max-height: 760px) and (min-width: 901px) {
+  .container.homepage {
+    min-height: 0;
+    grid-template-rows: minmax(220px, 0.9fr) auto minmax(290px, 1fr) auto;
+    gap: 0.45rem;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .homepage .hero-visual {
+    max-height: 250px;
+  }
+
+}
+
+@media (max-width: 900px) {
+  .container.homepage {
+    display: flex;
+    height: auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0.75rem 1.5rem;
+  }
+
+  .homepage .hero-science {
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+
+  .homepage .hero-copy {
+    align-items: center;
+    text-align: center;
+  }
+
+  .homepage .main-title {
+    text-align: center;
+  }
+
+  .homepage .hero-visual {
+    width: 100%;
+    height: 245px;
+  }
+
+  .homepage .search-section {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .homepage .circular-navigation-wrapper {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .homepage .orbit-picker {
+    height: 320px;
+    transform: scale(0.9);
+    transform-origin: top center;
+    margin-bottom: -25px;
+  }
+}
+
+@media (max-width: 600px) {
+  .nav-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand lab"
+      "links links";
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+  }
+
+  .nav-left {
+    grid-area: brand;
+    min-width: 0;
+    height: 42px;
+  }
+
+  .nav-left .nav-logo-link {
+    height: 42px;
+  }
+
+  .lab-logo-link {
+    grid-area: lab;
+    height: 42px;
+    margin: 0;
+  }
+
+  .nav-links {
+    grid-area: links;
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.25rem;
+    border-radius: 6px;
+  }
+
+  .nav-links a {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.82rem;
+  }
+
+  .homepage .circular-navigation-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .homepage .orbit-picker {
+    width: 100%;
+    height: 300px;
+    transform: none;
+    margin-bottom: 0;
+  }
+
+  .homepage .orbit-guide {
+    width: 238px;
+    height: 238px;
+  }
+
+  .homepage .crop-orbit-picker .orbit-item {
+    width: 76px;
+    height: 76px;
+    font-size: 0.74rem;
+  }
+
+  .homepage .crop-orbit-picker .orbit-item:nth-of-type(n + 7) {
+    width: 70px;
+    height: 70px;
+  }
+
+  .homepage .stress-orbit-picker .orbit-item {
+    width: 78px;
+    height: 78px;
+  }
+
+  .motif-scan-track {
+    right: 4%;
+    left: 4%;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .motif-track-sequence {
+    font-size: 0.62rem;
+    flex-wrap: wrap;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .motif-scan-cursor {
+    display: none;
+  }
+
+  .homepage .micro-metrics {
+    gap: 0.3rem;
+  }
+
+  .homepage .metric-pill strong {
+    font-size: 1.15rem;
+  }
+
+  .homepage .explore-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
