@@ -72,12 +72,14 @@ class DataStore:
     def __init__(self, data_dir: Path) -> None:
         self.data_dir = data_dir
         self.datasets: dict[str, CropDataset] = {}
+        self.annotations: dict[str, dict[str, list[dict[str, Any]]]] = {}
         self.all_columns: list[str] = []
         self.tfbs_catalog: dict[str, dict[str, Any]] = {}
         self.tfbs_catalog_file = self.data_dir / "tfbs" / "tfbs_data.csv"
 
     def load(self) -> None:
         self.datasets = {}
+        self.annotations = {}
         if not self.data_dir.exists():
             self.all_columns = []
             return
@@ -94,7 +96,11 @@ class DataStore:
 
         union_columns: set[str] = set()
         for file_path in sorted(files, key=lambda p: p.name.lower()):
-            crop = file_path.stem.lower()
+            if file_path.stem.lower().endswith("_annotation"):
+                self._load_annotations(file_path)
+                continue
+
+            crop = file_path.stem.strip().lower()
             try:
                 dataset = self._load_dataset(file_path=file_path, crop=crop)
                 self.datasets[crop] = dataset
@@ -152,6 +158,62 @@ class DataStore:
             gene_lookup=gene_lookup,
             gene_column=gene_column,
         )
+
+    def _load_annotations(self, file_path: Path) -> None:
+        crop = file_path.stem[:-len("_annotation")].strip().lower()
+        try:
+            df = pd.read_csv(file_path)
+            df.columns = [_normalize_column_name(column) for column in df.columns]
+            gene_column = self._find_gene_column(list(df.columns))
+            if not gene_column:
+                return
+
+            annotation_lookup = self.annotations.setdefault(crop, {})
+            for raw_record in df.to_dict(orient="records"):
+                record = {
+                    str(key): _normalize_cell(_to_python_value(value))
+                    for key, value in raw_record.items()
+                }
+                gene_id = record.get(gene_column)
+                if gene_id not in (None, ""):
+                    annotation_lookup.setdefault(self._normalize_gene_id(gene_id), []).append(record)
+        except Exception as error:
+            print(f"Warning: Could not load annotations from {file_path.name}: {error}")
+
+    @staticmethod
+    def _normalize_gene_id(gene_id: Any) -> str:
+        key = str(gene_id).strip().lower()
+        for prefix in ("gene-", "gene:"):
+            if key.startswith(prefix):
+                return key[len(prefix):]
+        return key
+
+    @staticmethod
+    def _protein_name(annotation: dict[str, Any] | None) -> str | None:
+        if not annotation:
+            return None
+
+        columns = {_canonical_key(column): column for column in annotation}
+        for candidate in (
+            "protein_name",
+            "protein",
+            "product",
+            "arabidopsis_description",
+            "rice_description",
+            "note",
+        ):
+            column = columns.get(candidate)
+            value = annotation.get(column) if column else None
+            if value not in (None, ""):
+                return str(value).strip()
+        return None
+
+    def get_gene_annotation(self, crop: str, gene_id: str) -> dict[str, Any] | None:
+        annotations = self.get_gene_annotations(crop, gene_id)
+        return annotations[0] if annotations else None
+
+    def get_gene_annotations(self, crop: str, gene_id: str) -> list[dict[str, Any]]:
+        return list(self.annotations.get(crop.lower(), {}).get(self._normalize_gene_id(gene_id), []))
 
     @staticmethod
     def _drop_non_data_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -278,6 +340,9 @@ class DataStore:
             if rec is not None:
                 out = dict(rec)
                 out["_crop"] = crop
+                annotations = self.get_gene_annotations(crop, gene_id)
+                out["annotations"] = annotations
+                out["protein_name"] = self._protein_name(annotations[0] if annotations else None)
                 return out
         return None
 
@@ -391,6 +456,7 @@ class DataStore:
                         "found": True,
                         "total_occurrences": 0,
                         "_genes": set(),
+                        "_gene_annotations": {},
                         "_crops": set(),
                         "_starts": [],
                         "_ends": [],
@@ -404,7 +470,16 @@ class DataStore:
                 if gene_column:
                     gene_value = rec.get(gene_column)
                     if gene_value not in (None, ""):
-                        item["_genes"].add(str(gene_value).strip())
+                        gene_id = str(gene_value).strip()
+                        item["_genes"].add(gene_id)
+                        annotation = self.get_gene_annotation(crop, gene_id)
+                        if annotation:
+                            item["_gene_annotations"][(crop, gene_id)] = {
+                                "gene_id": gene_id,
+                                "crop": crop,
+                                "protein_name": self._protein_name(annotation),
+                                "annotation": annotation,
+                            }
 
                 start_val = _to_float(rec.get(start_column)) if start_column else None
                 end_val = _to_float(rec.get(end_column)) if end_column else None
@@ -452,6 +527,10 @@ class DataStore:
                     "max": int(round(max(ends))) if ends else None,
                 },
                 "sample_genes": genes[:20],
+                "gene_annotations": [
+                    item["_gene_annotations"][key]
+                    for key in sorted(item["_gene_annotations"], key=lambda value: (value[0], value[1]))[:20]
+                ],
             }
 
         return catalog
@@ -535,6 +614,10 @@ class DataStore:
             for rec in ds.records:
                 row = dict(rec)
                 row["_crop"] = ds.crop
+                gene_value = rec.get(ds.gene_column) if ds.gene_column else None
+                annotation = self.get_gene_annotation(ds.crop, str(gene_value)) if gene_value not in (None, "") else None
+                row["_annotation"] = annotation
+                row["_protein_name"] = self._protein_name(annotation)
                 if not self._matches_filters(
                     row=row,
                     q=q_norm,

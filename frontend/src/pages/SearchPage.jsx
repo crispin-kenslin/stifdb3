@@ -94,6 +94,7 @@ export default function SearchPage() {
         if (!grouped[groupKey]) {
           grouped[groupKey] = {
             Gene: geneStr,
+            Protein: item._protein_name || geneStr,
             tfSet: new Set(),
             Crop: cropDisplay
           };
@@ -137,6 +138,7 @@ export default function SearchPage() {
 
           return {
             Gene: row.Gene,
+            "Protein Name": row.Protein,
             "Transcription Factors Binding Sites": tfDisplay,
             Crop: row.Crop
           };

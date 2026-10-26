@@ -160,49 +160,22 @@ export default function HomePage() {
         </div>
 
         <div className="hero-visual" aria-hidden="true">
-          <div className="signal-grid" />
-          <div className="signal-wave wave-one" />
-          <div className="signal-wave wave-two" />
-          <div className="signal-wave wave-three" />
-
-          <div className="science-orbit">
-            {crops.slice(0, 6).map((crop, index) => {
-              const angle = (index * 360) / Math.max(crops.slice(0, 6).length, 1) - 90;
-              const radius = 170;
-              const x = Math.cos((angle * Math.PI) / 180) * radius;
-              const y = Math.sin((angle * Math.PI) / 180) * radius;
-              return (
-                <span
-                  key={crop}
-                  className="orbit-badge"
-                  style={{
-                    left: `calc(50% + ${x}px)`,
-                    top: `calc(50% + ${y}px)`,
-                    transform: 'translate(-50%, -50%)',
-                    animationDelay: `${index * 0.25}s`,
-                  }}
-                >
-                  {capitalizeFirst(crop)}
+          <div className="orbit-stage">
+            <div className="orbit-lane orbit-lane-outer">
+              {crops.slice(0, 2).map((crop, index) => (
+                <span className="orbit-puck crop-puck" key={crop} data-slot={index}>
+                  <span>{capitalizeFirst(crop)}</span>
                 </span>
-              );
-            })}
-          </div>
-
-          <div className="database-visual">
-            <div className="network-ring ring-one" />
-            <div className="network-ring ring-two" />
-            <div className="network-ring ring-three" />
-            <div className="gene-node node-a" />
-            <div className="gene-node node-b" />
-            <div className="gene-node node-c" />
-            <div className="gene-node node-d" />
-            <div className="dna-helix">
-              <span className="helix-strand left" />
-              <span className="helix-strand right" />
+              ))}
             </div>
-            <div className="core-hub">
-              <span>STIF</span>
+            <div className="orbit-lane orbit-lane-inner">
+              {stressTypes.slice(0, 2).map((stress, index) => (
+                <span className="orbit-puck stress-puck" key={stress} data-slot={index}>
+                  <span>{stress}</span>
+                </span>
+              ))}
             </div>
+            <div className="core-hub"><span>STIF</span></div>
           </div>
 
           <div className="motif-scan-track">
@@ -218,14 +191,10 @@ export default function HomePage() {
               <span>GCTAACGT</span>
               <span className="motif-hit">TTGACC</span>
               <span>AGTCCGTA</span>
-              <span>ACGTTGAC</span>
-              <span className="motif-hit">CACGTG</span>
-              <span>GCTAACGT</span>
-              <span>AGT</span>
+              <span>AGTCCGTA</span>
+              <span className="motif-scan-cursor" />
             </div>
-            <span className="motif-scan-cursor" />
           </div>
-
         </div>
       </section>
 

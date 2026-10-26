@@ -36,6 +36,7 @@ export default function TFBSPage() {
   }
 
   const cropList = (detail.crops || []).map((crop) => crop.charAt(0).toUpperCase() + crop.slice(1));
+  const geneAnnotations = detail.gene_annotations || [];
   const functionText = typeof detail.function === "string" && detail.function.trim()
     ? detail.function.trim()
     : "Regulatory TFBS motif associated with transcriptional control in stress response.";
@@ -78,6 +79,41 @@ export default function TFBSPage() {
           <p>
             {cropList.length ? cropList.join(", ") : "No crop records found for this TFBS."}
           </p>
+        </section>
+
+        <section className="card">
+          <h2>Gene Annotations</h2>
+          {geneAnnotations.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Gene</th>
+                    <th>Crop</th>
+                    <th>Protein Name</th>
+                    <th>Annotation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {geneAnnotations.map((gene) => (
+                    <tr key={`${gene.crop}-${gene.gene_id}`}>
+                      <td>{gene.gene_id}</td>
+                      <td>{gene.crop}</td>
+                      <td>{gene.protein_name || "N/A"}</td>
+                      <td>
+                        {Object.entries(gene.annotation || {})
+                          .filter(([key, value]) => key.toLowerCase() !== "gene_id" && value !== null && value !== "")
+                          .map(([key, value]) => `${key}: ${value}`)
+                          .join("; ") || "No annotation available."}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p>No gene annotations are available for this TFBS.</p>
+          )}
         </section>
 
         <section className="card">

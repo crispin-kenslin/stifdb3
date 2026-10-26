@@ -17,6 +17,8 @@ export default function DataTable({ rows }) {
   );
 
   const geneKey = keys.find((k) => k.toLowerCase().replaceAll(" ", "_").includes("gene"));
+  const hiddenKeys = new Set(["_annotation", "_protein_name"]);
+  const displayKeys = keys.filter((key) => !hiddenKeys.has(key));
 
   const renderCellValue = (value) => {
     if (value === null || value === undefined || value === "") return "";
@@ -32,13 +34,13 @@ export default function DataTable({ rows }) {
       <table>
         <thead>
           <tr>
-            {keys.map((k) => <th key={k}>{formatHeader(k)}</th>)}
+            {displayKeys.map((k) => <th key={k}>{formatHeader(k)}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, idx) => (
             <tr key={`${idx}-${row[geneKey] || "row"}`}>
-              {keys.map((k) => {
+              {displayKeys.map((k) => {
                 const value = row[k] ?? "";
                 if (k === geneKey && value) {
                   return (

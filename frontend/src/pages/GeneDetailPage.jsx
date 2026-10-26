@@ -6,12 +6,18 @@ import InteractiveGeneGraph from "../components/InteractiveGeneGraph";
 export default function GeneDetailPage() {
   const { geneId } = useParams();
   const [tfbsData, setTfbsData] = useState(null);
+  const [geneData, setGeneData] = useState(null);
   const [upstreamSequence, setUpstreamSequence] = useState(null);
   const [sequenceLoading, setSequenceLoading] = useState(true);
   const [sequenceError, setSequenceError] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
+    setGeneData(null);
+    api.gene(geneId)
+      .then((gene) => setGeneData(gene))
+      .catch(() => setGeneData(null));
+
     api.geneTFBS(geneId)
       .then((tfbs) => {
         setTfbsData(tfbs);
@@ -127,6 +133,34 @@ export default function GeneDetailPage() {
           <h1>{geneId}</h1>
         </div>
       </header>
+
+      <section className="gene-annotation-panel" aria-labelledby="gene-annotation-title">
+        <h2 id="gene-annotation-title">Gene Annotation</h2>
+        {geneData?.annotations?.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Annotation Field</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {geneData.annotations.flatMap((annotation, annotationIndex) =>
+                  Object.entries(annotation).map(([field, value]) => (
+                    <tr key={`${annotationIndex}-${field}`}>
+                      <th scope="row">{field}</th>
+                      <td>{value === null || value === "" ? "N/A" : String(value)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p>No annotation data is available for this gene.</p>
+        )}
+      </section>
 
       <section className="gene-sequence-panel" aria-labelledby="gene-sequence-title">
         <header className="gene-sequence-header">

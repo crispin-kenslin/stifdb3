@@ -51,6 +51,7 @@ export default function CropPage() {
         if (!grouped[geneStr]) {
           grouped[geneStr] = {
             Gene: geneStr,
+            Protein: item._protein_name || geneStr,
             TF_Names: new Set(),
             starts: [],
             ends: [],
@@ -78,6 +79,7 @@ export default function CropPage() {
 
         return {
           Gene: row.Gene,
+          "Protein Name": row.Protein,
           TF_Names: Array.from(row.TF_Names).sort().join(', '),
           TFBS_Count: row.TFBS_Count,
           Start_Range: startMin === null ? 'N/A' : (startMin === startMax ? `${startMin}` : `${startMin} to ${startMax}`),
