@@ -7,230 +7,195 @@ export default function GeneDetailPage() {
   const { geneId } = useParams();
   const [tfbsData, setTfbsData] = useState(null);
   const [geneData, setGeneData] = useState(null);
-  const [upstreamSequence, setUpstreamSequence] = useState(null);
-  const [sequenceLoading, setSequenceLoading] = useState(true);
-  const [sequenceError, setSequenceError] = useState("");
+  const [upstreamSeq, setUpstreamSeq] = useState(null);
+  const [seqLoading, setSeqLoading] = useState(true);
+  const [seqError, setSeqError] = useState("");
   const [error, setError] = useState("");
+  const [tab, setTab] = useState("graph");
 
   useEffect(() => {
-    setGeneData(null);
-    api.gene(geneId)
-      .then((gene) => setGeneData(gene))
-      .catch(() => setGeneData(null));
+    setGeneData(null); setTfbsData(null); setUpstreamSeq(null);
+    setSeqError(""); setSeqLoading(true); setError("");
 
-    api.geneTFBS(geneId)
-      .then((tfbs) => {
-        setTfbsData(tfbs);
-      })
-      .catch((e) => setError(String(e.message || e)));
-
-    setUpstreamSequence(null);
-    setSequenceError("");
-    setSequenceLoading(true);
-    api
-      .geneUpstreamSequence(geneId)
-      .then((sequenceData) => setUpstreamSequence(sequenceData))
+    api.gene(geneId).then(setGeneData).catch(() => setGeneData(null));
+    api.geneTFBS(geneId).then(setTfbsData).catch((e) => setError(String(e.message || e)));
+    api.geneUpstreamSequence(geneId)
+      .then(setUpstreamSeq)
       .catch((e) => {
-        let message = String(e.message || e);
-        try {
-          message = JSON.parse(message).detail || message;
-        } catch {
-          // Keep the original API message when it is not JSON.
-        }
-        setSequenceError(message);
+        let msg = String(e.message || e);
+        try { msg = JSON.parse(msg).detail || msg; } catch { /* */ }
+        setSeqError(msg);
       })
-      .finally(() => setSequenceLoading(false));
+      .finally(() => setSeqLoading(false));
   }, [geneId]);
 
-  const downloadCurrentGeneCsv = () => {
+  const downloadCsv = () => {
     if (!tfbsData?.motifs?.length) return;
-
-    const rows = tfbsData.motifs.map((motif, index) => ({
-      index: index + 1,
-      gene_id: motif.gene_id ?? geneId,
-      tf_name: motif.name ?? "",
-      start: motif.start ?? "",
-      end: motif.end ?? "",
-      zscore: motif.zscore ?? "",
-      strand_orientation: motif.strand ?? motif.orientation ?? ""
+    const rows = tfbsData.motifs.map((m, i) => ({
+      index: i + 1, gene_id: m.gene_id ?? geneId,
+      tf_name: m.name ?? "", start: m.start ?? "", end: m.end ?? "",
+      zscore: m.zscore ?? "", orientation: m.strand ?? ""
     }));
-
-    const csvHeaders = ["index", "gene_id", "tf_name", "start", "end", "zscore", "strand_orientation"];
-    const content = [
-      csvHeaders.join(","),
-      ...rows.map((row) =>
-        csvHeaders.map((header) => {
-          const value = row[header] ?? "";
-          const escaped = String(value).replace(/"/g, '""');
-          return `"${escaped}"`;
-        }).join(",")
-      )
-    ].join("\n");
-
-    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${geneId}-tfbs.csv`;
-    a.click();
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => `"${String(r[h] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a"); a.href = url; a.download = `${geneId}-tfbs.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
-  const downloadTfbsPng = () => {
+  const downloadPng = () => {
     const svg = document.querySelector(".gene-graph");
     if (!svg) return;
-
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svg);
-    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
+    const svgStr = new XMLSerializer().serializeToString(svg);
+    const url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
     const img = new Image();
-
     img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const width = (svg.viewBox?.baseVal?.width || svg.clientWidth || 1200) * 2;
-      const height = (svg.viewBox?.baseVal?.height || svg.clientHeight || 420) * 2;
-      canvas.width = width;
-      canvas.height = height;
-
+      const w = (svg.viewBox?.baseVal?.width || svg.clientWidth || 1200) * 2;
+      const h = (svg.viewBox?.baseVal?.height || svg.clientHeight || 420) * 2;
+      const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
-
-      canvas.toBlob((pngBlob) => {
-        if (!pngBlob) return;
-        const pngUrl = URL.createObjectURL(pngBlob);
-        const link = document.createElement("a");
-        link.href = pngUrl;
-        link.download = `${geneId}-tfbs-plot.png`;
-        link.click();
-        URL.revokeObjectURL(pngUrl);
+      ctx.fillStyle = "#070b14"; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const pu = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = pu; a.download = `${geneId}-tfbs.png`; a.click();
+        URL.revokeObjectURL(pu);
       }, "image/png");
-
       URL.revokeObjectURL(url);
     };
-
     img.src = url;
   };
 
-  if (!tfbsData && !error) return <main className="container"><p>Loading...</p></main>;
+  if (!tfbsData && !error) {
+    return (
+      <div className="gene-detail-page">
+        <div className="loading-state" style={{ flex: 1 }}>
+          <div className="loading-spinner" /> Loading gene data…
+        </div>
+      </div>
+    );
+  }
 
-  const motifRows = (tfbsData?.motifs || []).map((motif, index) => ({
-    index: index + 1,
-    tf_name: motif.name ?? "",
-    start: motif.start ?? "",
-    end: motif.end ?? "",
-    zscore: motif.zscore ?? "",
-    strand: motif.strand ?? motif.orientation ?? "",
+  const motifRows = (tfbsData?.motifs || []).map((m, i) => ({
+    "#": i + 1, "TF Name": m.name ?? "", "Start": m.start ?? "",
+    "End": m.end ?? "", "Z-Score": m.zscore ?? "", "Orientation": m.strand ?? ""
   }));
 
   return (
-    <main className="container gene-detail-page">
-      <header className="gene-page-header">
+    <div className="gene-detail-page">
+      {/* Header */}
+      <div className="gene-page-header" style={{ padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <p className="eyebrow">TFBS profile</p>
-          <h1>{geneId}</h1>
+          <p className="page-eyebrow">TFBS Profile</p>
+          <h1 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.2rem", color: "var(--cyan)" }}>{geneId}</h1>
         </div>
-      </header>
-
-      <section className="gene-annotation-panel" aria-labelledby="gene-annotation-title">
-        <h2 id="gene-annotation-title">Gene Annotation</h2>
-        {geneData?.annotations?.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Annotation Field</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {geneData.annotations.flatMap((annotation, annotationIndex) =>
-                  Object.entries(annotation).map(([field, value]) => (
-                    <tr key={`${annotationIndex}-${field}`}>
-                      <th scope="row">{field}</th>
-                      <td>{value === null || value === "" ? "N/A" : String(value)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p>No annotation data is available for this gene.</p>
-        )}
-      </section>
-
-      <section className="gene-sequence-panel" aria-labelledby="gene-sequence-title">
-        <header className="gene-sequence-header">
-          <div>
-            <p className="eyebrow">Upstream DNA · {upstreamSequence?.crop || "gene sequence"}</p>
-            <h2 id="gene-sequence-title">1,000 bp upstream sequence</h2>
-          </div>
-          {upstreamSequence && (
-            <div className="gene-sequence-length">
-              <strong>{upstreamSequence.length.toLocaleString()}</strong>
-              <span>bp</span>
-            </div>
+        <div style={{ display: "flex", gap: ".5rem" }}>
+          {tfbsData?.motifs?.length > 0 && (
+            <>
+              <button className="btn btn-secondary" onClick={downloadPng}>↓ PNG</button>
+              <button className="btn btn-secondary" onClick={downloadCsv}>↓ CSV</button>
+            </>
           )}
-        </header>
-        {sequenceLoading ? (
-          <p className="gene-sequence-state">Retrieving the gene's upstream sequence…</p>
-        ) : upstreamSequence ? (
-          <>
-            <p className="gene-sequence-source">{upstreamSequence.header}</p>
-            <pre className="gene-sequence-code">{upstreamSequence.sequence}</pre>
-          </>
-        ) : (
-          <p className="gene-sequence-state" role="status">
-            Upstream sequence is not available for this gene yet. {sequenceError}
-          </p>
-        )}
-      </section>
-
-      {error && <p className="error-msg" role="alert">{error}</p>}
-      
-      {tfbsData && tfbsData.motifs && tfbsData.motifs.length > 0 && (
-        <section className="graph-section">
-          <h2><center>TFBS Map - Visualization of Transcription Factor Binding Sites</center></h2>
-          <InteractiveGeneGraph data={tfbsData.motifs} geneId={geneId} />
-
-
-           <div className="download-actions">
-          <button type="button" className="secondary-btn" onClick={downloadTfbsPng}>Download PNG</button>
-          <button type="button" className="secondary-btn" onClick={downloadCurrentGeneCsv}>Download CSV</button>
-        </div>
-
-          <h3>TFBS Motif Table</h3>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>TF Name</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Z-Score</th>
-                  <th>Strand / Orientation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {motifRows.map((row) => (
-                  <tr key={`${row.tf_name}-${row.start}-${row.end}-${row.index}`}>
-                    <td>{row.index}</td>
-                    <td>{row.tf_name}</td>
-                    <td>{row.start}</td>
-                    <td>{row.end}</td>
-                    <td>{row.zscore}</td>
-                    <td>{row.strand}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="results-badge">
+            <strong>{tfbsData?.motifs?.length ?? 0}</strong>
+            <span>motifs</span>
           </div>
-        </section>
-      )}
-    </main>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="gene-detail-tabs">
+        {[["graph", "🧬 TFBS Map"], ["table", "📋 Motif Table"], ["annotation", "📝 Annotation"], ["sequence", "🔗 Upstream Seq"]].map(([key, label]) => (
+          <button key={key} className={`gene-tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Body */}
+      <div className="gene-detail-body">
+        {error && <p className="error-msg">{error}</p>}
+
+        {tab === "graph" && (
+          <>
+            {tfbsData?.motifs?.length > 0 ? (
+              <div className="gene-graph-container">
+                <InteractiveGeneGraph data={tfbsData.motifs} geneId={geneId} />
+                <p className="graph-hint">💡 Click any motif to view TFBS details</p>
+              </div>
+            ) : (
+              <div className="empty-state">No TFBS motifs found for this gene.</div>
+            )}
+          </>
+        )}
+
+        {tab === "table" && (
+          <div className="table-wrap">
+            {motifRows.length > 0 ? (
+              <table>
+                <thead><tr>{Object.keys(motifRows[0]).map((k) => <th key={k}>{k}</th>)}</tr></thead>
+                <tbody>
+                  {motifRows.map((r, i) => (
+                    <tr key={i}>{Object.values(r).map((v, j) => <td key={j}>{v}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">No motif data available.</div>
+            )}
+          </div>
+        )}
+
+        {tab === "annotation" && (
+          <div className="card">
+            <h2>Gene Annotation</h2>
+            {geneData?.annotations?.length ? (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                  <tbody>
+                    {geneData.annotations.flatMap((ann, ai) =>
+                      Object.entries(ann).map(([field, value]) => (
+                        <tr key={`${ai}-${field}`}>
+                          <th scope="row" style={{ fontWeight: 600, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{field}</th>
+                          <td>{value === null || value === "" ? "N/A" : String(value)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={{ color: "var(--text-muted)", fontSize: ".85rem" }}>No annotation data available for this gene.</p>
+            )}
+          </div>
+        )}
+
+        {tab === "sequence" && (
+          <div className="card">
+            <h2>1,000 bp Upstream Sequence
+              {upstreamSeq && (
+                <span style={{ fontSize: ".75rem", color: "var(--lime)", marginLeft: ".5rem", fontWeight: 400 }}>
+                  {upstreamSeq.length?.toLocaleString()} bp · {upstreamSeq.crop}
+                </span>
+              )}
+            </h2>
+            {seqLoading ? (
+              <div className="loading-state"><div className="loading-spinner" /> Retrieving sequence…</div>
+            ) : upstreamSeq ? (
+              <>
+                <p style={{ fontSize: ".75rem", color: "var(--text-muted)", marginBottom: ".5rem" }}>{upstreamSeq.header}</p>
+                <pre className="gene-sequence-code">{upstreamSeq.sequence}</pre>
+              </>
+            ) : (
+              <p style={{ color: "var(--text-muted)", fontSize: ".85rem" }}>
+                Upstream sequence not available. {seqError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

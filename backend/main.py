@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from io import StringIO
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
@@ -22,29 +23,29 @@ def resolve_data_dir() -> Path:
     configured = os.getenv("STIF_DATA_DIR")
     if configured:
         return Path(configured)
-
+    local_data = BASE_DIR.parent / "data"
+    if local_data.exists():
+        return local_data
     docker_data = Path("/data")
-    if docker_data.exists():
+    if docker_data.exists() and (Path("/.dockerenv").exists() or (docker_data / "tfbs").exists()):
         return docker_data
-
-    return BASE_DIR.parent / "data"
+    return local_data
 
 
 DATA_DIR = resolve_data_dir()
+store = DataStore(DATA_DIR)
+upstream_sequences = UpstreamSequenceStore(DATA_DIR / "sequences")
 
-
-class StifalPredictionRequest(BaseModel):
-    sequence: str = Field(max_length=20000)
-    sequence_name: str = Field(default="Submitted sequence", max_length=100)
-    minimum_zscore: float = Field(default=1.0, ge=0, le=20)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    store.load()
+    # Load data in thread pool to avoid blocking startup
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, store.load)
     yield
 
 
-app = FastAPI(title="Plant TF Public Portal API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="STIFDB3 - Plant TF Stress Response Portal", version="3.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,18 +54,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-store = DataStore(DATA_DIR)
-upstream_sequences = UpstreamSequenceStore(DATA_DIR / "sequences")
+
+class StifalPredictionRequest(BaseModel):
+    sequence: str = Field(max_length=20000)
+    sequence_name: str = Field(default="Submitted sequence", max_length=100)
+    minimum_zscore: float = Field(default=1.0, ge=0, le=20)
 
 
 @app.post("/predict/stifal")
-def predict_stifal(request: StifalPredictionRequest) -> dict:
+async def predict_stifal(request: StifalPredictionRequest) -> dict:
+    loop = asyncio.get_event_loop()
     try:
-        return predict_sequence(
-            request.sequence,
-            request.sequence_name,
-            minimum_zscore=request.minimum_zscore,
+        result = await loop.run_in_executor(
+            None,
+            lambda: predict_sequence(
+                request.sequence,
+                request.sequence_name,
+                minimum_zscore=request.minimum_zscore,
+            ),
         )
+        return result
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except FileNotFoundError as error:
@@ -77,8 +86,9 @@ def health() -> dict:
 
 
 @app.post("/reload")
-def reload_data() -> dict:
-    store.load()
+async def reload_data() -> dict:
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, store.load)
     return {"status": "reloaded", "crops": store.list_crops()}
 
 
@@ -87,24 +97,44 @@ def stats() -> dict:
     return store.get_stats()
 
 
-@app.get("/columns")
-def columns(crop: str | None = None) -> dict:
-    if crop:
-        ds = store.get_dataset(crop)
-        if not ds:
-            raise HTTPException(status_code=404, detail=f"Unknown crop: {crop}")
-        return {"crop": ds.crop, "columns": ds.columns}
-    return {"columns": store.all_columns}
-
-
 @app.get("/crops")
 def crops() -> dict:
-    return {"crops": store.list_crops()}
+    crop_list = store.list_crops()
+    summary = []
+    for c in crop_list:
+        ds = store.datasets.get(c)
+        if not ds:
+            continue
+        tf_families = set()
+        tf_col = store._find_column_by_keywords(ds.columns, ["tf", "family"])
+        if tf_col:
+            for r in ds.records:
+                val = r.get(tf_col)
+                if val not in (None, ""):
+                    tf_families.add(str(val).strip())
+        summary.append({
+            "crop": c,
+            "total_records": ds.total_records,
+            "unique_genes": len(ds.gene_lookup),
+            "tf_count": len(tf_families),
+            "columns": ds.columns,
+            "stress_tags": sorted(ds.stress_tags),
+        })
+    return {"crops": crop_list, "summary": summary}
 
 
 @app.get("/facets")
 def facets(crop: str | None = None) -> dict:
     return store.get_facets(crop=crop)
+
+
+@app.get("/stress-types")
+def stress_types() -> dict:
+    """Return all stress types detected across the loaded datasets."""
+    tags = sorted(store.all_stress_tags)
+    if not tags:
+        tags = ["Drought", "Salinity", "Cold", "Heat", "Osmotic", "ABA", "Oxidative"]
+    return {"stress_types": tags}
 
 
 @app.get("/data")
@@ -113,6 +143,7 @@ def data(
     tf_family: str | None = None,
     chromosome: str | None = None,
     strand: str | None = None,
+    stress: str | None = None,
     limit: int = Query(default=100, ge=1, le=5000),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
@@ -121,6 +152,7 @@ def data(
         tf_family=tf_family,
         chromosome=chromosome,
         strand=strand,
+        stress=stress,
         limit=limit,
         offset=offset,
     )
@@ -134,6 +166,7 @@ def search(
     tf_family: str | None = None,
     chromosome: str | None = None,
     strand: str | None = None,
+    stress: str | None = None,
     field: str | None = None,
     limit: int = Query(default=100, ge=1, le=5000),
     offset: int = Query(default=0, ge=0),
@@ -144,6 +177,7 @@ def search(
         tf_family=tf_family,
         chromosome=chromosome,
         strand=strand,
+        stress=stress,
         field=field,
         limit=limit,
         offset=offset,
@@ -161,7 +195,6 @@ def gene_upstream_sequence(gene_id: str) -> dict:
     gene = store.find_gene(gene_id)
     if not gene:
         raise HTTPException(status_code=404, detail=f"Gene not found: {gene_id}")
-
     crop = str(gene["_crop"])
     try:
         record = upstream_sequences.get_sequence(crop, gene_id)
@@ -201,11 +234,10 @@ def download_crop(crop: str) -> StreamingResponse:
 
     suffix = ds.file_path.suffix.lower()
     media_type = "text/csv" if suffix in (".csv", ".tsv") else "application/vnd.ms-excel"
-    filename = ds.file_path.name
     return StreamingResponse(
         iter_file(),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{ds.file_path.name}"'},
     )
 
 
@@ -216,14 +248,18 @@ def download_filtered(
     tf_family: str | None = None,
     chromosome: str | None = None,
     strand: str | None = None,
+    stress: str | None = None,
     field: str | None = None,
 ) -> StreamingResponse:
+    import pandas as pd
+
     rows, _ = store.query_records(
         crop=crop,
         q=q,
         tf_family=tf_family,
         chromosome=chromosome,
         strand=strand,
+        stress=stress,
         field=field,
         limit=500000,
         offset=0,
@@ -232,8 +268,6 @@ def download_filtered(
         raise HTTPException(status_code=404, detail="No rows found for export")
 
     csv_buffer = StringIO()
-    import pandas as pd
-
     pd.DataFrame(rows).to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
 
@@ -246,5 +280,4 @@ def download_filtered(
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

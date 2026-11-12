@@ -2,103 +2,89 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 
+const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+
 export default function TFFamiliesPage() {
   const navigate = useNavigate();
   const [tfFamilies, setTfFamilies] = useState([]);
-  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [openFamily, setOpenFamily] = useState(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    Promise.all([api.facets(), api.stats()])
-      .then(([facetsData, statsData]) => {
-        setTfFamilies(facetsData.tf_families || []);
-        setStats(statsData);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error loading TF families:", err);
-        setLoading(false);
-      });
+    api.facets()
+      .then((f) => { setTfFamilies(f.tf_families || []); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <main className="container">
-        <h1>TF Families</h1>
-        <p>Loading TF family data...</p>
-      </main>
-    );
-  }
+  const filtered = search.trim()
+    ? tfFamilies.filter((f) => f.toLowerCase().includes(search.toLowerCase()))
+    : tfFamilies;
 
   return (
-    <main className="container">
-      <h1>Transcription Factor Families</h1>
-      <p className="page-intro">
-        Browse stress-responsive transcription factors organized by family. 
-        For each family, choose whether to open matching genes or TFBS motif info.
-      </p>
-
-    
-
-      <section className="tf-families-grid">
-        {tfFamilies.map((family) => {
-          const isOpen = openFamily === family;
-          return (
-            <article
-              key={family}
-              className={`tf-family-card${isOpen ? " open" : ""}`}
-              role="button"
-              tabIndex={0}
-              aria-expanded={isOpen}
-              aria-controls={`tf-actions-${encodeURIComponent(family)}`}
-              onClick={() => setOpenFamily((prev) => (prev === family ? null : family))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setOpenFamily((prev) => (prev === family ? null : family));
-                }
-              }}
-            >
-              <h3>{family}</h3>
-
-              {isOpen && (
-                <div
-                  className="tf-card-actions"
-                  id={`tf-actions-${encodeURIComponent(family)}`}
-                  role="group"
-                  aria-label={`Actions for ${family}`}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/tfbs/${encodeURIComponent(family)}`)}
-                  >
-                    View Info
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/search?tf_family=${encodeURIComponent(family)}`)}
-                  >
-                    View Genes
-                  </button>
-                </div>
-              )}
-
-              <p className="tf-meta">
-                {isOpen ? "" : ""}
-              </p>
-            </article>
-          );
-        })}
-      </section>
-
-      {tfFamilies.length === 0 && (
-        <div className="empty-state">
-          <p>No TF families found in the database.</p>
+    <div className="tf-families-page">
+      <div className="tf-families-header" style={{ maxWidth: 1400, margin: "0 auto", width: "100%", padding: "1rem 1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p className="page-eyebrow">Transcription Factors</p>
+            <h1 style={{ fontSize: "1.2rem" }}>TF Families</h1>
+          </div>
+          <div className="results-badge">
+            <strong>{filtered.length}</strong>
+            <span>families</span>
+          </div>
         </div>
-      )}
-    </main>
+        <input
+          style={{ marginTop: ".8rem", padding: ".45rem .8rem", background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: ".85rem", fontFamily: "inherit", width: 260 }}
+          placeholder="Filter families…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      <div className="tf-families-body" style={{ maxWidth: 1400, margin: "0 auto", width: "100%" }}>
+        {loading ? (
+          <div className="loading-state"><div className="loading-spinner" /> Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">No TF families found.</div>
+        ) : (
+          <div className="tf-families-grid">
+            {filtered.map((family) => {
+              const isOpen = openFamily === family;
+              return (
+                <article
+                  key={family}
+                  className={`tf-family-card ${isOpen ? "open" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  onClick={() => setOpenFamily((p) => p === family ? null : family)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setOpenFamily((p) => p === family ? null : family);
+                    }
+                  }}
+                >
+                  <h3>{family}</h3>
+                  {isOpen && (
+                    <div className="tf-card-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <button className="btn tf-action-btn tf-action-btn-info"
+                        onClick={() => navigate(`/tfbs/${encodeURIComponent(family)}`)}>
+                        Info
+                      </button>
+                      <button className="btn tf-action-btn tf-action-btn-genes"
+                        onClick={() => navigate(`/search?tf_family=${encodeURIComponent(family)}`)}>
+                        Genes
+                      </button>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

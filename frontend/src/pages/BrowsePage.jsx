@@ -2,80 +2,121 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 
-const STRESS_TYPES = ["Drought", "Heat", "Cold", "Salt", "Biotic"];
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+
+const BOTANICAL_NAMES = {
+  arabidopsis: "Arabidopsis thaliana",
+  cotton: "Gossypium hirsutum",
+  maize: "Zea mays",
+  potato: "Solanum tuberosum",
+  rapeseed: "Brassica napus",
+  rice: "Oryza sativa",
+  sorghum: "Sorghum bicolor",
+  soybean: "Glycine max",
+  tomato: "Solanum lycopersicum",
+  wheat: "Triticum aestivum",
+};
+
+const CROP_COLORS = {
+  arabidopsis: { bg: "#f0fdf4", border: "#22c55e", icon: "🌿", accent: "#16a34a" },
+  cotton: { bg: "#fdf2f8", border: "#ec4899", icon: "☁️", accent: "#6970afff" },
+  maize: { bg: "#fdf4ff", border: "#d946ef", icon: "🌽", accent: "#c026d3" },
+  potato: { bg: "#eff6ff", border: "#3b82f6", icon: "🥔", accent: "#2563eb" },
+  rapeseed: { bg: "#fffbeb", border: "#f59e0b", icon: "🌼", accent: "#d97706" },
+  rice: { bg: "#fefce8", border: "#eab308", icon: "🌾", accent: "#ca8a04" },
+  sorghum: { bg: "#f0fdfa", border: "#14b8a6", icon: "🌱", accent: "#0d9488" },
+  soybean: { bg: "#ecfdf5", border: "#10b981", icon: "🫘", accent: "#059669" },
+  tomato: { bg: "#fff1f2", border: "#f43f5e", icon: "🍅", accent: "#e11d48" },
+  wheat: { bg: "#fff7ed", border: "#f97316", icon: "🌾", accent: "#ea580c" },
+};
+const DEFAULT_COLOR = { bg: "#f8fafc", border: "#94a3b8", icon: "🌱", accent: "#64748b" };
 
 export default function BrowsePage() {
-  const [crops, setCrops] = useState([]);
+  const [cropSummary, setCropSummary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stressTypes, setStressTypes] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.crops()
-      .then((c) => {
-        const cropList = Array.from(new Set(c?.crops || [])).sort((a, b) => a.localeCompare(b));
-        setCrops(cropList);
+    Promise.all([
+      api.crops(),
+      api.stressTypes ? api.stressTypes() : Promise.resolve({ stress_types: [] }),
+    ])
+      .then(([cropsData, stressData]) => {
+        setCropSummary(cropsData?.summary || []);
+        setStressTypes(stressData?.stress_types || []);
         setLoading(false);
       })
-      .catch(() => {
-        setLoading(false);
-      });
+      .catch(() => setLoading(false));
   }, []);
 
-  const capitalizeFirst = (str) => {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-
-  function openCrop(crop) {
-    navigate(`/search?crop=${encodeURIComponent(crop)}`);
-  }
-
-  function openStress(stress) {
-    navigate(`/search?q=${encodeURIComponent(stress)}`);
-  }
-
   return (
-    <main className="container browse-page">
-      <h1>Browse by Crop and Stress</h1>
-      <p className="page-intro">
-        Open filtered results instantly by clicking any crop or stress card.
-      </p>
+    <div className="browse-page">
+      <div className="browse-header">
+        <p className="page-eyebrow">Genome Database Catalog</p>
+        <h1>Browse Crop Species &amp; Transcription Factors</h1>
+      </div>
 
-      <section className="browse-panel">
-        <h2>Browse Crops</h2>
+      <div className="browse-body">
+        <p className="browse-section-title">Plant Species in STIFDB3 ({cropSummary.length})</p>
         {loading ? (
-          <p>Loading crops...</p>
+          <div className="loading-state">
+            <div className="loading-spinner" /> Loading species data from backend...
+          </div>
         ) : (
           <div className="browse-card-grid">
-            {crops.map((crop) => (
-              <button
-                type="button"
-                key={crop}
-                className="browse-option-card"
-                onClick={() => openCrop(crop)}
-              >
-                <span className="browse-option-title">{capitalizeFirst(crop)}</span>
-              </button>
-            ))}
+            {cropSummary.map((item) => {
+              const cKey = item.crop.toLowerCase();
+              const sci = BOTANICAL_NAMES[cKey] || cap(item.crop);
+              const colors = CROP_COLORS[cKey] || DEFAULT_COLOR;
+
+              return (
+                <button
+                  key={item.crop}
+                  type="button"
+                  className="browse-crop-card"
+                  onClick={() => navigate(`/crop/${encodeURIComponent(item.crop)}`)}
+                  style={{
+                    "--card-bg": colors.bg,
+                    "--card-border": colors.border,
+                    "--card-accent": colors.accent,
+                  }}
+                >
+                  <div className="browse-crop-card-header">
+                    <span className="browse-crop-icon">{colors.icon}</span>
+                    <span className="browse-crop-title">{cap(item.crop)}</span>
+                  </div>
+                  <div className="browse-crop-details">
+                    <span className="browse-crop-sci">{sci}</span>
+                    <div className="browse-crop-stats-row">
+                      <span><strong>{item.total_records.toLocaleString()}</strong> TFBS</span>
+                      <span><strong>{item.unique_genes.toLocaleString()}</strong> Genes</span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
-      </section>
 
-      <section className="browse-panel">
-        <h2>Browse Stresses</h2>
-        <div className="browse-card-grid stress-grid">
-          {STRESS_TYPES.map((stress) => (
-            <button
-              type="button"
-              key={stress}
-              className="browse-option-card stress"
-              onClick={() => openStress(stress)}
-            >
-              <span className="browse-option-title">{stress}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-    </main>
+        {stressTypes && stressTypes.length > 0 && (
+          <div className="browse-stress-section">
+            <span className="browse-stress-label">Stress Annotations:</span>
+            <div className="browse-stress-pills">
+              {stressTypes.map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  className="browse-stress-pill"
+                  onClick={() => navigate(`/search?stress=${encodeURIComponent(st)}`)}
+                >
+                  {cap(st)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

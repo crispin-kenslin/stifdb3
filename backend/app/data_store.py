@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +8,7 @@ import pandas as pd
 
 
 SUPPORTED_EXTENSIONS = {".csv", ".tsv", ".xlsx", ".xls"}
+
 
 
 def _normalize_column_name(name: str) -> str:
@@ -54,6 +55,21 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
+def _extract_stress_tags(record: dict[str, Any], columns: list[str]) -> list[str]:
+    """Extract stress tags only if a dedicated stress/condition column exists in the dataset."""
+    tags: set[str] = set()
+    for col in columns:
+        ck = _canonical_key(col)
+        if "stress" in ck or "condition" in ck or "treatment" in ck:
+            val = record.get(col)
+            if val and isinstance(val, str) and val.strip():
+                for item in val.replace(";", ",").split(","):
+                    cleaned = item.strip()
+                    if cleaned:
+                        tags.add(cleaned)
+    return sorted(tags)
+
+
 @dataclass
 class CropDataset:
     crop: str
@@ -62,6 +78,7 @@ class CropDataset:
     records: list[dict[str, Any]]
     gene_lookup: dict[str, dict[str, Any]]
     gene_column: str | None
+    stress_tags: set[str] = field(default_factory=set)  # All stress tags in this dataset
 
     @property
     def total_records(self) -> int:
@@ -76,10 +93,12 @@ class DataStore:
         self.all_columns: list[str] = []
         self.tfbs_catalog: dict[str, dict[str, Any]] = {}
         self.tfbs_catalog_file = self.data_dir / "tfbs" / "tfbs_data.csv"
+        self.all_stress_tags: set[str] = set()
 
     def load(self) -> None:
         self.datasets = {}
         self.annotations = {}
+        self.all_stress_tags = set()
         if not self.data_dir.exists():
             self.all_columns = []
             return
@@ -89,6 +108,8 @@ class DataStore:
             p
             for p in self.data_dir.rglob("*")
             if p.is_file()
+            and not p.name.startswith(".")
+            and not any(part.startswith(".") for part in p.parts)
             and p.suffix.lower() in SUPPORTED_EXTENSIONS
             and tfbs_dir not in p.resolve().parents
             and p.resolve() != self.tfbs_catalog_file.resolve()
@@ -96,7 +117,7 @@ class DataStore:
 
         union_columns: set[str] = set()
         for file_path in sorted(files, key=lambda p: p.name.lower()):
-            if file_path.stem.lower().endswith("_annotation"):
+            if "annotation" in file_path.stem.lower():
                 self._load_annotations(file_path)
                 continue
 
@@ -105,6 +126,7 @@ class DataStore:
                 dataset = self._load_dataset(file_path=file_path, crop=crop)
                 self.datasets[crop] = dataset
                 union_columns.update(dataset.columns)
+                self.all_stress_tags.update(dataset.stress_tags)
             except Exception as e:
                 print(f"Warning: Could not load {file_path.name}: {e}")
                 continue
@@ -116,11 +138,11 @@ class DataStore:
 
     def _load_dataset(self, file_path: Path, crop: str) -> CropDataset:
         suffix = file_path.suffix.lower()
-        
+
         if suffix == ".csv":
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, low_memory=False)
         elif suffix == ".tsv":
-            df = pd.read_csv(file_path, sep="\t")
+            df = pd.read_csv(file_path, sep="\t", low_memory=False)
         elif suffix in (".xlsx", ".xls"):
             df = pd.read_excel(file_path)
         else:
@@ -130,7 +152,6 @@ class DataStore:
         df.columns = [_normalize_column_name(c) for c in df.columns]
         df = df.where(pd.notnull(df), None)
 
-        # Normalize all string cells first so downstream row filters are reliable.
         for col in df.columns:
             df[col] = df[col].map(_normalize_cell)
 
@@ -150,6 +171,12 @@ class DataStore:
                 if gene_id is not None:
                     gene_lookup[str(gene_id).strip().lower()] = record
 
+        # Collect stress tags across all records
+        dataset_stress_tags: set[str] = set()
+        for record in records:
+            tags = _extract_stress_tags(record, columns)
+            dataset_stress_tags.update(tags)
+
         return CropDataset(
             crop=crop,
             file_path=file_path,
@@ -157,10 +184,17 @@ class DataStore:
             records=records,
             gene_lookup=gene_lookup,
             gene_column=gene_column,
+            stress_tags=dataset_stress_tags,
         )
 
     def _load_annotations(self, file_path: Path) -> None:
-        crop = file_path.stem[:-len("_annotation")].strip().lower()
+        stem = file_path.stem.lower()
+        if stem.endswith("_annotation"):
+            crop = stem[: -len("_annotation")].strip()
+        elif stem.endswith("-annotation"):
+            crop = stem[: -len("-annotation")].strip()
+        else:
+            crop = stem.replace("annotation", "").strip("-_")
         try:
             df = pd.read_csv(file_path)
             df.columns = [_normalize_column_name(column) for column in df.columns]
@@ -176,7 +210,9 @@ class DataStore:
                 }
                 gene_id = record.get(gene_column)
                 if gene_id not in (None, ""):
-                    annotation_lookup.setdefault(self._normalize_gene_id(gene_id), []).append(record)
+                    annotation_lookup.setdefault(
+                        self._normalize_gene_id(gene_id), []
+                    ).append(record)
         except Exception as error:
             print(f"Warning: Could not load annotations from {file_path.name}: {error}")
 
@@ -185,14 +221,13 @@ class DataStore:
         key = str(gene_id).strip().lower()
         for prefix in ("gene-", "gene:"):
             if key.startswith(prefix):
-                return key[len(prefix):]
+                return key[len(prefix) :]
         return key
 
     @staticmethod
     def _protein_name(annotation: dict[str, Any] | None) -> str | None:
         if not annotation:
             return None
-
         columns = {_canonical_key(column): column for column in annotation}
         for candidate in (
             "protein_name",
@@ -213,7 +248,11 @@ class DataStore:
         return annotations[0] if annotations else None
 
     def get_gene_annotations(self, crop: str, gene_id: str) -> list[dict[str, Any]]:
-        return list(self.annotations.get(crop.lower(), {}).get(self._normalize_gene_id(gene_id), []))
+        return list(
+            self.annotations.get(crop.lower(), {}).get(
+                self._normalize_gene_id(gene_id), []
+            )
+        )
 
     @staticmethod
     def _drop_non_data_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -262,28 +301,27 @@ class DataStore:
     def get_dataset(self, crop: str) -> CropDataset | None:
         return self.datasets.get(crop.lower())
 
-    def get_stats(self) -> dict[str, int]:
+    def get_stats(self) -> dict[str, Any]:
         total_genes = sum(ds.total_records for ds in self.datasets.values())
-        tf_family_count = set()
+        tf_family_count: set[str] = set()
         for ds in self.datasets.values():
-            # Look for TF column with multiple possible names
             tf_col = None
             for col in ds.columns:
                 col_key = _canonical_key(col)
-                if 'tf' in col_key or col_key in ('tf_name', 'tf_family', 'tffamily'):
+                if "tf" in col_key or col_key in ("tf_name", "tf_family", "tffamily"):
                     tf_col = col
                     break
-            
             if tf_col:
                 for row in ds.records:
                     value = row.get(tf_col)
                     if value not in (None, ""):
                         tf_family_count.add(str(value).strip().lower())
-        
+
         return {
             "total_genes": total_genes,
             "total_tfs": len(tf_family_count),
             "total_crops": len(self.datasets),
+            "stress_tags": sorted(self.all_stress_tags),
         }
 
     def get_facets(self, crop: str | None = None) -> dict[str, list[str]]:
@@ -294,7 +332,10 @@ class DataStore:
         )
         tf_values: set[str] = set()
         strand_values: set[str] = set()
+        stress_values: set[str] = set()
+
         for ds in datasets:
+            stress_values.update(ds.stress_tags)
             for rec in ds.records:
                 for key, value in rec.items():
                     if value in (None, ""):
@@ -305,21 +346,21 @@ class DataStore:
                         tf_values.add(val)
                     elif "strand" in norm_key or "orientation" in norm_key:
                         strand_values.add(val)
+
         return {
             "tf_families": sorted(tf_values),
             "strands": sorted(strand_values),
+            "stress_types": sorted(stress_values),
         }
 
     @staticmethod
     def _find_column_by_keywords(columns: list[str], keywords: list[str]) -> str | None:
-        # First try exact matches with common TF column names
         if keywords == ["tf", "family"] or "tf" in keywords:
             for col in columns:
                 key = _canonical_key(col)
                 if key in ("tf_name", "tf_family", "tffamily", "tfname"):
                     return col
-        
-        # Then try keyword matching
+
         for col in columns:
             key = _canonical_key(col)
             if all(k in key for k in keywords):
@@ -330,7 +371,7 @@ class DataStore:
                 key = _canonical_key(col)
                 if "orientation" in key or "strand" in key:
                     return col
-        
+
         return None
 
     def find_gene(self, gene_id: str) -> dict[str, Any] | None:
@@ -342,7 +383,9 @@ class DataStore:
                 out["_crop"] = crop
                 annotations = self.get_gene_annotations(crop, gene_id)
                 out["annotations"] = annotations
-                out["protein_name"] = self._protein_name(annotations[0] if annotations else None)
+                out["protein_name"] = self._protein_name(
+                    annotations[0] if annotations else None
+                )
                 return out
         return None
 
@@ -399,7 +442,9 @@ class DataStore:
                 if start_val is None or end_val is None:
                     continue
 
-                zscore_val = _to_float(rec.get(zscore_column)) if zscore_column else None
+                zscore_val = (
+                    _to_float(rec.get(zscore_column)) if zscore_column else None
+                )
                 strand_val = rec.get(strand_column) if strand_column else None
 
                 motif = {
@@ -408,7 +453,9 @@ class DataStore:
                     "start": int(round(start_val)),
                     "end": int(round(end_val)),
                     "zscore": zscore_val,
-                    "strand": str(strand_val).strip() if strand_val not in (None, "") else None,
+                    "strand": str(strand_val).strip()
+                    if strand_val not in (None, "")
+                    else None,
                 }
                 dedupe_key = (
                     motif["name"],
@@ -426,7 +473,9 @@ class DataStore:
         motifs.sort(key=lambda m: (m["start"], m["end"], m["name"]))
         return {"gene_id": gene_id, "crop": found_crop, "motifs": motifs}
 
-    def _build_tfbs_catalog(self, metadata_map: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+    def _build_tfbs_catalog(
+        self, metadata_map: dict[str, dict[str, Any]] | None = None
+    ) -> dict[str, dict[str, Any]]:
         grouped: dict[str, dict[str, Any]] = {}
         metadata_map = metadata_map or {}
 
@@ -481,9 +530,13 @@ class DataStore:
                                 "annotation": annotation,
                             }
 
-                start_val = _to_float(rec.get(start_column)) if start_column else None
+                start_val = (
+                    _to_float(rec.get(start_column)) if start_column else None
+                )
                 end_val = _to_float(rec.get(end_column)) if end_column else None
-                zscore_val = _to_float(rec.get(zscore_column)) if zscore_column else None
+                zscore_val = (
+                    _to_float(rec.get(zscore_column)) if zscore_column else None
+                )
 
                 if start_val is not None:
                     item["_starts"].append(start_val)
@@ -501,7 +554,9 @@ class DataStore:
             zscores = item["_zscores"]
 
             avg_zscore = round(sum(zscores) / len(zscores), 4) if zscores else None
-            function_text = str((metadata_map.get(tf_key) or {}).get("function") or "").strip()
+            function_text = str(
+                (metadata_map.get(tf_key) or {}).get("function") or ""
+            ).strip()
             if not function_text:
                 function_text = "Regulatory TFBS motif associated with transcriptional control in stress response."
 
@@ -529,7 +584,10 @@ class DataStore:
                 "sample_genes": genes[:20],
                 "gene_annotations": [
                     item["_gene_annotations"][key]
-                    for key in sorted(item["_gene_annotations"], key=lambda value: (value[0], value[1]))[:20]
+                    for key in sorted(
+                        item["_gene_annotations"],
+                        key=lambda value: (value[0], value[1]),
+                    )[:20]
                 ],
             }
 
@@ -566,7 +624,9 @@ class DataStore:
     def _write_tfbs_catalog_csv(self) -> None:
         self.tfbs_catalog_file.parent.mkdir(parents=True, exist_ok=True)
         rows = []
-        for item in sorted(self.tfbs_catalog.values(), key=lambda x: str(x.get("name", "")).lower()):
+        for item in sorted(
+            self.tfbs_catalog.values(), key=lambda x: str(x.get("name", "")).lower()
+        ):
             rows.append(
                 {
                     "name": item.get("name") or "",
@@ -598,6 +658,7 @@ class DataStore:
         tf_family: str | None = None,
         chromosome: str | None = None,
         strand: str | None = None,
+        stress: str | None = None,
         field: str | None = None,
         limit: int = 100,
         offset: int = 0,
@@ -609,21 +670,37 @@ class DataStore:
             else list(self.datasets.values())
         )
         q_norm = q.strip().lower() if q else None
+        stress_norm = stress.strip().lower() if stress else None
 
         for ds in datasets:
+            # Filter datasets by stress tag if provided
+            if stress_norm and not any(
+                stress_norm in tag.lower() for tag in ds.stress_tags
+            ):
+                # Dataset has no matching stress - but still include rows that match on record level
+                pass
+
             for rec in ds.records:
                 row = dict(rec)
                 row["_crop"] = ds.crop
-                gene_value = rec.get(ds.gene_column) if ds.gene_column else None
-                annotation = self.get_gene_annotation(ds.crop, str(gene_value)) if gene_value not in (None, "") else None
+                gene_value = (
+                    rec.get(ds.gene_column) if ds.gene_column else None
+                )
+                annotation = (
+                    self.get_gene_annotation(ds.crop, str(gene_value))
+                    if gene_value not in (None, "")
+                    else None
+                )
                 row["_annotation"] = annotation
                 row["_protein_name"] = self._protein_name(annotation)
+
                 if not self._matches_filters(
                     row=row,
                     q=q_norm,
                     tf_family=tf_family,
                     chromosome=chromosome,
                     strand=strand,
+                    stress=stress_norm,
                     field=field,
                 ):
                     continue
@@ -640,9 +717,15 @@ class DataStore:
     def _parse_tf_families(tf_family: str | None) -> list[str]:
         if not tf_family:
             return []
-        return [part.strip() for part in str(tf_family).split(",") if part and part.strip()]
+        return [
+            part.strip()
+            for part in str(tf_family).split(",")
+            if part and part.strip()
+        ]
 
-    def _filter_gene_matches_by_tf_family(self, rows: list[dict[str, Any]], tf_families: list[str]) -> list[dict[str, Any]]:
+    def _filter_gene_matches_by_tf_family(
+        self, rows: list[dict[str, Any]], tf_families: list[str]
+    ) -> list[dict[str, Any]]:
         gene_groups: dict[str, list[dict[str, Any]]] = {}
         for row in rows:
             gene_key = None
@@ -661,10 +744,18 @@ class DataStore:
             for row in gene_rows:
                 for key, value in row.items():
                     key_norm = _canonical_key(key)
-                    if value not in (None, "") and any(alias in key_norm for alias in ("tf", "tf_name", "tf_family", "tffamily")):
+                    if value not in (None, "") and any(
+                        alias in key_norm
+                        for alias in ("tf", "tf_name", "tf_family", "tffamily")
+                    ):
                         tf_values.append(str(value).strip())
             tf_lower = [value.lower() for value in tf_values if value]
-            if all(any(tf in family.lower() or family.lower() in tf for tf in tf_lower) for family in tf_families):
+            if all(
+                any(
+                    tf in family.lower() or family.lower() in tf for tf in tf_lower
+                )
+                for family in tf_families
+            ):
                 filtered.extend(gene_rows)
         return filtered
 
@@ -675,11 +766,18 @@ class DataStore:
         tf_family: str | None,
         chromosome: str | None,
         strand: str | None,
+        stress: str | None,
         field: str | None,
     ) -> bool:
-        if chromosome and not self._value_contains(row, ["chromosome", "chr"], chromosome):
+        if chromosome and not self._value_contains(
+            row, ["chromosome", "chr"], chromosome
+        ):
             return False
         if strand and not self._value_contains(row, ["strand", "orientation"], strand):
+            return False
+        if stress and not self._value_contains(
+            row, ["stress", "condition", "treatment"], stress
+        ):
             return False
         if q:
             if field:
@@ -695,7 +793,9 @@ class DataStore:
         return True
 
     @staticmethod
-    def _value_contains(row: dict[str, Any], aliases: list[str], expected: str) -> bool:
+    def _value_contains(
+        row: dict[str, Any], aliases: list[str], expected: str
+    ) -> bool:
         expected_norm = expected.strip().lower()
         for key, value in row.items():
             key_norm = _canonical_key(key)

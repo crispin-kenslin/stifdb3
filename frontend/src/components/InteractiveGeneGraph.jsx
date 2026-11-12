@@ -332,7 +332,7 @@ export default function InteractiveGeneGraph({ data, geneId }) {
     svg.appendChild(tooltipGroup);
 
     // Arrow at the end
-    
+
 
   }, [data, geneId, navigate]);
 
@@ -343,7 +343,6 @@ export default function InteractiveGeneGraph({ data, geneId }) {
   return (
     <div className="gene-graph-container" ref={containerRef}>
       <svg ref={svgRef} className="gene-graph"></svg>
-      <p className="graph-hint">💡 Click on any TFBS motif to view details</p>
     </div>
   );
 }

@@ -1,103 +1,319 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 
+/* ── Continuous DNA Sequence for 5-nt Sliding Window Scanner ── */
+const FULL_SEQUENCE = "AGCTGACACGTGATGCCTTTGACCGCTAGGCTAACTACGACAGTCGCTACACGTGTTAGGTACTTGACCGCCGTCGA";
+
+const BOTANICAL_NAMES = {
+  arabidopsis: "Arabidopsis thaliana",
+  cotton: "Gossypium hirsutum",
+  maize: "Zea mays",
+  potato: "Solanum tuberosum",
+  rapeseed: "Brassica napus",
+  rice: "Oryza sativa",
+  sorghum: "Sorghum bicolor",
+  soybean: "Glycine max",
+  tomato: "Solanum lycopersicum",
+  wheat: "Triticum aestivum",
+};
+
+/* Bright color palette for crop cards */
+const CROP_COLORS = {
+  arabidopsis: { bg: "#f0fdf4", border: "#22c55e", icon: "🌿", accent: "#16a34a" },
+  cotton: { bg: "#fdf2f8", border: "#ec4899", icon: "☁️", accent: "#6970afff" },
+  maize: { bg: "#fdf4ff", border: "#d946ef", icon: "🌽", accent: "#c026d3" },
+  potato: { bg: "#eff6ff", border: "#3b82f6", icon: "🥔", accent: "#2563eb" },
+  rapeseed: { bg: "#fffbeb", border: "#f59e0b", icon: "🌼", accent: "#d97706" },
+  rice: { bg: "#fefce8", border: "#eab308", icon: "🌾", accent: "#ca8a04" },
+  sorghum: { bg: "#f0fdfa", border: "#14b8a6", icon: "🌱", accent: "#0d9488" },
+  soybean: { bg: "#ecfdf5", border: "#10b981", icon: "🫘", accent: "#059669" },
+  tomato: { bg: "#fff1f2", border: "#f43f5e", icon: "🍅", accent: "#e11d48" },
+  wheat: { bg: "#fff7ed", border: "#f97316", icon: "🌾", accent: "#ea580c" },
+};
+
+const DEFAULT_COLOR = { bg: "#f8fafc", border: "#94a3b8", icon: "🌱", accent: "#64748b" };
+
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+
+function useCounting(target, duration = 800) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!target) return;
+    const start = Date.now();
+    const tick = () => {
+      const p = Math.min((Date.now() - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 4);
+      setCount(Math.floor(target * ease));
+      if (p < 1) requestAnimationFrame(tick);
+      else setCount(target);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return count;
+}
+
+/* ── Subtle 5-bp TF Binding Sites ── */
+const SUBTLE_TFBS = [
+  { start: 7, end: 12 },   // 5 bp
+  { start: 27, end: 32 },  // 5 bp
+  { start: 50, end: 55 },  // 5 bp
+];
+
+/* ── Motif Scanner: 5-Sequence Sliding Window Box ── */
+function MotifScanner() {
+  const [windowPos, setWindowPos] = useState(0);
+  const WINDOW_SIZE = 5;
+  const seqLen = FULL_SEQUENCE.length;
+
+  useEffect(() => {
+    let raf;
+    let pos = 0;
+    let dir = 1;
+    const speed = 0.22;
+
+    const animate = () => {
+      pos += speed * dir;
+      if (pos >= seqLen - WINDOW_SIZE) {
+        dir = -1;
+        pos = seqLen - WINDOW_SIZE;
+      }
+      if (pos <= 0) {
+        dir = 1;
+        pos = 0;
+      }
+      setWindowPos(pos);
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [seqLen]);
+
+  // Calculate sliding box position in percentages
+  const leftPercent = (windowPos / seqLen) * 100;
+  const widthPercent = (WINDOW_SIZE / seqLen) * 100;
+
+  return (
+    <div className="scanner-widget">
+      <div className="scanner-widget-header">
+        <div className="scanner-brand-row">
+          <span className="scanner-logo-tag">STIFAL</span>
+          <span className="scanner-divider">|</span>
+          <span className="scanner-seq-label">Motif Scanner</span>
+        </div>
+      </div>
+
+      <div className="scanner-track">
+        {/* Blue Sliding box covering 5 sequences */}
+        <div
+          className="scanner-sliding-box"
+          style={{
+            left: `${leftPercent}%`,
+            width: `${widthPercent}%`,
+          }}
+        >
+          <div className="sliding-box-inner" />
+        </div>
+
+        {/* DNA sequence with subtle 5-bp TFBS highlights */}
+        <div className="scanner-dna-row">
+          {FULL_SEQUENCE.split("").map((ch, i) => {
+            const isSubtle = SUBTLE_TFBS.some(site => i >= site.start && i < site.end);
+            return (
+              <span
+                key={i}
+                className={`seq-char ${isSubtle ? "seq-subtle-site" : ""}`}
+              >
+                {ch}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="scanner-footer">
+        <Link to="/predict" className="scanner-open-btn">Open Full Predictor →</Link>
+      </div>
+    </div>
+  );
+}
+
+/* ── Electron Orbiting Animation: Crops & Stresses ── */
+function ElectronOrbitAnimation({ crops = [], stresses = [] }) {
+  const navigate = useNavigate();
+  const [angle, setAngle] = useState(0);
+
+  useEffect(() => {
+    let raf;
+    let a = 0;
+    const animate = () => {
+      a += 0.005; // Smooth orbital rotation speed
+      setAngle(a);
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Distinct sets for orbits
+  const displayCrops = crops.length > 0 ? crops.slice(0, 8) : [
+    "Arabidopsis", "Cotton", "Maize", "Potato", "Rapeseed", "Rice", "Sorghum", "Wheat"
+  ];
+  const displayStresses = stresses.length > 0 ? stresses.slice(0, 6) : [
+    "Drought", "Salinity", "Cold", "Heat", "Osmotic", "ABA"
+  ];
+
+  // Orbital radii (guaranteed non-overlapping ellipses, enlarged and centered)
+  // Outer orbit: Crops
+  const Rx_crop = 185;
+  const Ry_crop = 92;
+
+  // Inner orbit: Stresses (well clear of outer orbit)
+  const Rx_stress = 100;
+  const Ry_stress = 48;
+
+  return (
+    <div className="electron-orbit-section" aria-label="Orbital crop and stress visualization">
+      <div className="atom-stage">
+        {/* Center Nucleus */}
+        <div className="atom-nucleus" title="STIFDB3 Regulatory Core">
+          <div className="nucleus-glow" />
+          <span className="nucleus-text">STIF</span>
+        </div>
+
+        {/* Outer Orbit Guide Track (Crops) */}
+        <div
+          className="orbit-ellipse-track track-crops"
+          style={{
+            width: `${Rx_crop * 2}px`,
+            height: `${Ry_crop * 2}px`,
+          }}
+        />
+
+        {/* Inner Orbit Guide Track (Stresses) */}
+        <div
+          className="orbit-ellipse-track track-stresses"
+          style={{
+            width: `${Rx_stress * 2}px`,
+            height: `${Ry_stress * 2}px`,
+          }}
+        />
+
+        {/* Orbiting Stresses (Inner Orbit, Counter-Clockwise, Always Horizontal) */}
+        {displayStresses.map((stress, idx) => {
+          const a = -angle * 1.2 + (idx * 2 * Math.PI) / displayStresses.length;
+          const x = Rx_stress * Math.cos(a);
+          const y = Ry_stress * Math.sin(a);
+
+          return (
+            <button
+              key={`stress-${stress}`}
+              type="button"
+              className="electron-particle electron-stress"
+              onClick={() => navigate(`/search?q=${encodeURIComponent(stress)}`)}
+              title={`Search ${stress} responsive genes`}
+              style={{
+                transform: `translate(${x}px, ${y}px) translate(-50%, -50%)`,
+              }}
+            >
+              <span className="electron-sparkle stress-sparkle" />
+              <span className="electron-label">{stress}</span>
+            </button>
+          );
+        })}
+
+        {/* Orbiting Crops (Outer Orbit, Clockwise, Always Horizontal) */}
+        {displayCrops.map((crop, idx) => {
+          const a = angle + (idx * 2 * Math.PI) / displayCrops.length;
+          const x = Rx_crop * Math.cos(a);
+          const y = Ry_crop * Math.sin(a);
+
+          return (
+            <button
+              key={`crop-${crop}`}
+              type="button"
+              className="electron-particle electron-crop"
+              onClick={() => navigate(`/crop/${crop.toLowerCase()}`)}
+              title={`Explore ${cap(crop)} transcription factors`}
+              style={{
+                transform: `translate(${x}px, ${y}px) translate(-50%, -50%)`,
+              }}
+            >
+              <span className="electron-sparkle crop-sparkle" />
+              <span className="electron-label">{cap(crop)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [stats, setStats] = useState({ total_genes: 0, total_tfs: 0, total_crops: 0 });
-  const [displayStats, setDisplayStats] = useState({ total_genes: 0, total_tfs: 0, total_crops: 0 });
-  const [crops, setCrops] = useState([]);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingCrops, setLoadingCrops] = useState(true);
+  const [cropSummary, setCropSummary] = useState([]);
+  const [stressTypes, setStressTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [stressTypes] = useState(["Drought", "Heat", "Cold", "Salt", "Biotic"]);
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const navigate = useNavigate();
+  const searchRef = useRef(null);
+
+  const geneCount = useCounting(loading ? 0 : stats.total_genes);
+  const tfCount = useCounting(loading ? 0 : stats.total_tfs);
+  const cropCount = useCounting(loading ? 0 : stats.total_crops);
 
   useEffect(() => {
     let disposed = false;
-
-    const loadStats = async (attempt = 1) => {
+    const loadData = async (attempt = 1) => {
       try {
-        const s = await api.stats();
+        const [statsData, cropsData, stressData] = await Promise.all([
+          api.stats(),
+          api.crops(),
+          api.stressTypes(),
+        ]);
         if (disposed) return;
-        setStats(s);
-        setLoadingStats(false);
-        setLoadError("");
-        animateCount("total_genes", 0, s.total_genes || 0, 800);
-        animateCount("total_tfs", 0, s.total_tfs || 0, 800);
-        animateCount("total_crops", 0, s.total_crops || 0, 800);
+        setStats(statsData || { total_genes: 0, total_tfs: 0, total_crops: 0 });
+        setCropSummary(cropsData?.summary || []);
+        setStressTypes(stressData?.stress_types || []);
+        setLoading(false);
       } catch (err) {
         if (disposed) return;
         if (attempt < 4) {
-          setTimeout(() => loadStats(attempt + 1), attempt * 400);
+          setTimeout(() => loadData(attempt + 1), attempt * 400);
           return;
         }
-        setLoadingStats(false);
-        setLoadError(String(err?.message || err || "Failed to load homepage stats."));
+        setLoading(false);
+        setLoadError(String(err?.message || "Failed to connect to backend service."));
       }
     };
-
-    const loadCrops = async (attempt = 1) => {
-      try {
-        const c = await api.crops();
-        if (disposed) return;
-        const cropList = Array.from(new Set(c?.crops || [])).sort((a, b) => a.localeCompare(b));
-        setCrops(cropList);
-        setLoadingCrops(false);
-      } catch (err) {
-        if (disposed) return;
-        if (attempt < 4) {
-          setTimeout(() => loadCrops(attempt + 1), attempt * 400);
-          return;
-        }
-        setLoadingCrops(false);
-        setLoadError((prev) => prev || String(err?.message || err || "Failed to load crops."));
-      }
-    };
-
-    loadStats();
-    loadCrops();
-
-    return () => {
-      disposed = true;
-    };
+    loadData();
+    return () => { disposed = true; };
   }, []);
 
-  const animateCount = (key, start, end, duration) => {
-    const startTime = Date.now();
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Easing function for smooth animation
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      const current = Math.floor(start + (end - start) * easeOutQuart);
-      
-      setDisplayStats(prev => ({ ...prev, [key]: current }));
-      
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-    animate();
-  };
-
+  // Live search
   useEffect(() => {
-    if (search.trim().length > 1) {
-      const timer = setTimeout(() => {
-        api.search({ q: search, limit: 5 }).then((result) => {
-          setSearchResults(result.items || []);
-          setShowResults(true);
-        });
-      }, 300);
-      return () => clearTimeout(timer);
-    } else {
-      setSearchResults([]);
-      setShowResults(false);
-    }
+    if (search.trim().length < 2) { setSearchResults([]); setShowResults(false); return; }
+    const t = setTimeout(async () => {
+      try {
+        const r = await api.search({ q: search, limit: 6 });
+        setSearchResults(r.items || []);
+        setShowResults(true);
+      } catch { /* silent */ }
+    }, 250);
+    return () => clearTimeout(t);
   }, [search]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (!searchRef.current?.contains(e.target)) setShowResults(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   function handleSearchSubmit(e) {
     e.preventDefault();
@@ -107,226 +323,165 @@ export default function HomePage() {
     }
   }
 
-  function selectResult(geneId) {
+  function selectResult(item) {
+    const geneId = item.gene_id || item.Gene_ID || item.GeneID || item.Gene || Object.values(item)[0];
     navigate(`/gene/${encodeURIComponent(geneId)}`);
     setSearch("");
     setShowResults(false);
   }
 
-  const capitalizeFirst = (str) => {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-
-  function refreshHomeData() {
-    setLoadingStats(true);
-    setLoadingCrops(true);
-    setLoadError("");
-    api.stats().then((s) => {
-      setStats(s);
-      animateCount("total_genes", 0, s.total_genes || 0, 800);
-      animateCount("total_tfs", 0, s.total_tfs || 0, 800);
-      animateCount("total_crops", 0, s.total_crops || 0, 800);
-      setLoadingStats(false);
-    }).catch((err) => {
-      setLoadingStats(false);
-      setLoadError(String(err?.message || err || "Failed to refresh stats."));
-    });
-
-    api.crops().then((c) => {
-      const cropList = Array.from(new Set(c?.crops || [])).sort((a, b) => a.localeCompare(b));
-      setCrops(cropList);
-      setLoadingCrops(false);
-    }).catch((err) => {
-      setLoadingCrops(false);
-      setLoadError((prev) => prev || String(err?.message || err || "Failed to refresh crops."));
-    });
-  }
+  const cropNames = cropSummary.map(c => c.crop);
 
   return (
-    <main className="container homepage">
-      <section className="hero-science">
-        <div className="hero-copy">
-          <p className="eyebrow">Plant stress transcriptomics</p>
-          <h1 className="main-title">Stress-responsive TranscrIption Factors DataBase</h1>
-          <p className="body-text">
-            STIFDB3 brings together transcription factor families, crop-specific gene records,
-            and stress-response biology in a single research-ready interface.
-          </p>
-
-          <div className="hero-actions">
-            <Link to="/browse" className="primary-link">Explore crops</Link>
-            <Link to="/search" className="secondary-link">Search genes</Link>
-          </div>
-        </div>
-
-        <div className="hero-visual" aria-hidden="true">
-          <div className="orbit-stage">
-            <div className="orbit-lane orbit-lane-outer">
-              {crops.slice(0, 2).map((crop, index) => (
-                <span className="orbit-puck crop-puck" key={crop} data-slot={index}>
-                  <span>{capitalizeFirst(crop)}</span>
-                </span>
-              ))}
+    <div className="home-root">
+      <div className="home-main-grid">
+        {/* ── LEFT PANEL: DB Info & Branding + Electron Orbiting Animation ── */}
+        <div className="home-left-panel">
+          <div className="home-left-inner">
+            <div className="db-brand-section">
+              {/* <h1 className="db-title">STIFDB3</h1> */}
+              <p className="db-full-name">Stress-responsive Transcription Factor Database</p>
             </div>
-            <div className="orbit-lane orbit-lane-inner">
-              {stressTypes.slice(0, 2).map((stress, index) => (
-                <span className="orbit-puck stress-puck" key={stress} data-slot={index}>
-                  <span>{stress}</span>
-                </span>
-              ))}
+
+            <p className="db-intro-text">
+              STIFDB3 is a curated plant transcriptomics resource identifying stress-responsive
+              transcription factor binding sites across major crop genomes using genome-wide promoter analyses.
+            </p>
+
+            {/* Stats Bar */}
+            <div className="home-stats-grid">
+              <Link to="/search" className="home-stat-card stat-green" title="View all records">
+                <span className="home-stat-val">{loading ? "—" : geneCount.toLocaleString()}</span>
+                <span className="home-stat-lbl">TFBS Records</span>
+              </Link>
+              <Link to="/tf-families" className="home-stat-card stat-blue" title="View TF families">
+                <span className="home-stat-val">{loading ? "—" : tfCount}</span>
+                <span className="home-stat-lbl">TF Families</span>
+              </Link>
+              <Link to="/browse" className="home-stat-card stat-purple" title="Browse crops">
+                <span className="home-stat-val">{loading ? "—" : cropCount}</span>
+                <span className="home-stat-lbl">Crop Species</span>
+              </Link>
             </div>
-            <div className="core-hub"><span>STIF</span></div>
-          </div>
 
-          <div className="motif-scan-track">
-            <span className="motif-track-label">STIFAL</span>
-            <div className="motif-track-sequence" aria-hidden="true">
-              <span>ACGTTGAC</span>
-              <span className="motif-hit">CACGTG</span>
-              <span>GCTAACGT</span>
-              <span className="motif-hit">TTGACC</span>
-              <span>AGTCCGTA</span>
-              <span>ACGTTGAC</span>
-              <span className="motif-hit">CACGTG</span>
-              <span>GCTAACGT</span>
-              <span className="motif-hit">TTGACC</span>
-              <span>AGTCCGTA</span>
-              <span>AGTCCGTA</span>
-              <span className="motif-scan-cursor" />
-            </div>
-          </div>
-        </div>
-      </section>
+            {/* Search Box */}
+            <form onSubmit={handleSearchSubmit} className="home-search-wrap" ref={searchRef}>
+              <span className="home-search-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </span>
+              <input
+                className="home-search-input"
+                type="text"
+                placeholder="Search by Gene ID, TF Family, or Keyword"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoComplete="off"
+              />
+              <button type="submit" className="home-search-btn">Search</button>
 
-      <section className="search-section">
-        <form onSubmit={handleSearchSubmit} className="search-container">
-          <input
-            type="text"
-            className="search-input-large"
-            placeholder="Search Gene ID, TF family, orientation..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button type="submit" className="search-button">Search</button>
-        </form>
-
-        <div className="micro-metrics">
-          <Link to="/search" className="metric-pill clickable">
-            <strong>{loadingStats ? "..." : displayStats.total_genes.toLocaleString()}</strong>
-            <span>Genes</span>
-          </Link>
-          <Link to="/tf-families" className="metric-pill clickable">
-            <strong>{loadingStats ? "..." : displayStats.total_tfs}</strong>
-            <span>TF families</span>
-          </Link>
-          <Link to="/crops" className="metric-pill clickable">
-            <strong>{loadingStats ? "..." : displayStats.total_crops}</strong>
-            <span>Crops</span>
-          </Link>
-        </div>
-
-        {showResults && searchResults.length > 0 && (
-          <div className="search-results-dropdown">
-            {searchResults.map((item) => {
-              const geneId = item.gene_id || item.Gene_ID || item.GeneID || Object.values(item)[0];
-              const crop = item._crop || item.crop || "N/A";
-              return (
-                <div
-                  key={geneId}
-                  className="search-result-item"
-                  onClick={() => selectResult(geneId)}
-                >
-                  <strong>{geneId}</strong>
-                  <span className="result-meta"> - {capitalizeFirst(crop)} - {item.TF_family || item.tf_family || "N/A"}</span>
+              {showResults && searchResults.length > 0 && (
+                <div className="search-dropdown">
+                  {searchResults.map((item, i) => {
+                    const geneId = item.gene_id || item.Gene_ID || item.GeneID || item.Gene || Object.values(item)[0];
+                    const crop = item._crop || "";
+                    const tf = item.TF_Name || item.tf_name || item.TF_Family || item.tf_family || "";
+                    return (
+                      <div key={`${geneId}-${i}`} className="search-dropdown-item" onClick={() => selectResult(item)}>
+                        <strong>{geneId}</strong>
+                        <span className="search-dropdown-meta"> · {cap(crop)}{tf ? ` · ${tf}` : ""}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+              )}
+            </form>
 
-      {loadError && (
-        <section className="card" style={{ marginTop: "1rem" }}>
-          <p className="error-msg">{loadError}</p>
-          <button type="button" className="search-button" onClick={refreshHomeData}>Retry Homepage Load</button>
-        </section>
-      )}
+            {loadError && <p className="error-msg">{loadError}</p>}
 
-      <section className="circular-navigation-wrapper">
-        <div className="circle-section">
-          <h3 className="circle-title">Select by crops</h3>
-          <div className="circle-container orbit-picker crop-orbit-picker">
-            <div className="orbit-guide orbit-guide-one" />
-            <div className="orbit-guide orbit-guide-two" />
-            <div className="center-circle">
-              <span className="center-text">CROPS</span>
+            {/* Quick-action links */}
+            <div className="home-quick-links">
+              <Link to="/predict" className="action-pill action-pill-primary">STIFAL Predictor</Link>
+              <Link to="/tf-families" className="action-pill action-pill-outline">TF Families</Link>
+              <Link to="/help" className="action-pill action-pill-outline">Documentation</Link>
             </div>
-            {!loadingCrops && crops.map((crop, index) => {
-              const angle = (index * 360) / Math.max(crops.length, 1) - 90;
-              const radius = 123;
-              const x = Math.cos((angle * Math.PI) / 180) * radius;
-              const y = Math.sin((angle * Math.PI) / 180) * radius;
-              return (
-                <Link
-                  key={crop}
-                  to={`/crop/${encodeURIComponent(crop)}`}
-                  className="orbit-item crop-orbit-item"
-                  style={{
-                    left: `calc(50% + ${x}px)`,
-                    top: `calc(50% + ${y}px)`,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                >
-                  {capitalizeFirst(crop)}
-                </Link>
-              );
-            })}
-            {!loadingCrops && crops.length === 0 && (
-              <div className="orbit-item crop-orbit-item" style={{ left: "50%", top: "15%" }}>
-                No crops loaded
+
+            {/* ── Below the information pane: Electron Orbiting Animation ── */}
+            <ElectronOrbitAnimation crops={cropNames} stresses={stressTypes} />
+
+            {/* <div className="db-credits">
+              <p>Developed at CAPS, NCBS-TIFR, Bangalore</p>
+            </div> */}
+          </div>
+        </div>
+
+        {/* ── RIGHT PANEL: Crop Browse + Motif Scanner ── */}
+        <div className="home-right-panel">
+          {/* Crop Species Browse Section */}
+          <div className="home-crops-section">
+            <div className="crops-section-header">
+              <div>
+                <h2 className="crops-section-title">Browse by Species</h2>
+                <p className="crops-section-sub">
+                  {cropSummary.length} species · {stats.total_genes.toLocaleString()} TFBS entries
+                </p>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="circle-section">
-          <h3 className="circle-title">Select by stress</h3>
-          <div className="circle-container orbit-picker stress-orbit-picker">
-            <div className="orbit-guide orbit-guide-one" />
-            <div className="orbit-guide orbit-guide-two" />
-            <div className="center-circle stress">
-              <span className="center-text">STRESS</span>
+              <Link to="/browse" className="crops-browse-link">View All →</Link>
             </div>
-            {stressTypes.map((stress, index) => {
-              const angle = (index * 360) / stressTypes.length - 90;
-              const radius = 112;
-              const x = Math.cos((angle * Math.PI) / 180) * radius;
-              const y = Math.sin((angle * Math.PI) / 180) * radius;
-              return (
-                <Link
-                  key={stress}
-                  to={`/search?q=${encodeURIComponent(stress)}`}
-                  className="orbit-item stress"
-                  style={{
-                    left: `calc(50% + ${x}px)`,
-                    top: `calc(50% + ${y}px)`,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                >
-                  {stress}
-                </Link>
-              );
-            })}
+
+            <div className="crops-scroll-area">
+              {loading ? (
+                <div className="loading-state">
+                  <div className="loading-spinner" /> Fetching species data...
+                </div>
+              ) : (
+                <div className="home-crops-grid">
+                  {cropSummary.map((item) => {
+                    const cKey = item.crop.toLowerCase();
+                    const sciName = BOTANICAL_NAMES[cKey] || cap(item.crop);
+                    const colors = CROP_COLORS[cKey] || DEFAULT_COLOR;
+
+                    return (
+                      <button
+                        key={item.crop}
+                        type="button"
+                        className="home-crop-card"
+                        onClick={() => navigate(`/crop/${item.crop}`)}
+                        title={`Explore ${cap(item.crop)} transcription factors`}
+                        style={{
+                          "--card-bg": colors.bg,
+                          "--card-border": colors.border,
+                          "--card-accent": colors.accent,
+                        }}
+                      >
+                        <div className="crop-icon-circle">
+                          <span className="crop-icon-emoji">{colors.icon}</span>
+                        </div>
+                        <div className="crop-card-info">
+                          <span className="crop-card-name">{cap(item.crop)}</span>
+                          <span className="crop-card-sci">{sciName}</span>
+                        </div>
+                        <div className="crop-card-nums">
+                          <span><strong>{item.total_records.toLocaleString()}</strong> TFBS</span>
+                          <span><strong>{item.unique_genes.toLocaleString()}</strong> Genes</span>
+                          {/* <span><strong>{item.tf_count}</strong> TFs</span> */}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Motif Scanner Section: 5-nt sliding window box */}
+          <div className="home-scanner-section">
+            <MotifScanner />
           </div>
         </div>
-      </section>
-
-      <section className="explore-strip">
-        <div className="explore-pill" onClick={() => navigate("/browse")}>Browse crops</div>
-        <div className="explore-pill" onClick={() => navigate("/search?q=stress")}>Stress response</div>
-        <div className="explore-pill" onClick={() => navigate("/help")}>Methods</div>
-        <div className="explore-pill" onClick={() => navigate("/tf-families")}>TF families</div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

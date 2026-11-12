@@ -3,117 +3,99 @@ import { useParams } from "react-router-dom";
 import { api } from "../api";
 import DataTable from "../components/DataTable";
 
+const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+
+/** Case-insensitive field getter — tries exact key first, then lowercased scan */
+function getField(item, ...keys) {
+  for (const key of keys) {
+    if (item[key] !== undefined && item[key] !== null) return item[key];
+  }
+  // Fallback: case-insensitive scan
+  const lower = Object.fromEntries(Object.entries(item).map(([k, v]) => [k.toLowerCase(), v]));
+  for (const key of keys) {
+    const v = lower[key.toLowerCase()];
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+}
+
 export default function CropPage() {
   const { crop } = useParams();
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
-
-  const capitalizeFirst = (str) => {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.data({ 
-      crop,
-      limit: "5000", 
-      offset: "0" 
-    }).then((res) => {
-      const items = res.items || [];
-      
-      if (items.length === 0) {
-        setRows([]);
-        setTotal(0);
-        return;
-      }
-      
-      // Group by Gene
-      const grouped = {};
-      items.forEach(item => {
-        // Try multiple column names for gene
-        const geneKey = item.Gene || item['Gene ID'] || item.gene || item.gene_id || item.GeneID;
-        if (!geneKey) {
-          console.warn('No gene key found in item:', item);
-          return;
-        }
+    setLoading(true);
+    api.data({ crop, limit: "5000", offset: "0" })
+      .then((res) => {
+        const items = res.items || [];
+        if (!items.length) { setRows([]); setTotal(0); return; }
 
-        const geneStr = String(geneKey).trim();
-        const tfName = item.TF_Name || item['TF Name'] || item.TF_Family || item['TF Family'] || item.tf_name || item.tf_family;
-        const tfStr = tfName ? String(tfName).trim() : "";
-        if (!tfStr || tfStr.toLowerCase() === "tf_name" || tfStr.toLowerCase().includes("no tfbs found")) {
-          return;
-        }
+        const grouped = {};
+        items.forEach((item) => {
+          const geneKey = getField(item, "Gene", "Gene ID", "gene", "gene_id", "GeneID");
+          if (!geneKey) return;
+          const geneStr = String(geneKey).trim();
+          const tfName = getField(item, "TF_Name", "TF Name", "TF_Family", "TF Family", "tf_name", "tf_family", "TF_name");
+          const tfStr = tfName ? String(tfName).trim() : "";
+          if (!tfStr || tfStr.toLowerCase() === "tf_name" || tfStr.toLowerCase().includes("no tfbs found")) return;
 
-        const startNum = Number(item.Start ?? item.start);
-        const endNum = Number(item.End ?? item.end);
-        const zNum = Number(item['Z-Score'] ?? item['z-score'] ?? item.zscore);
-        
-        if (!grouped[geneStr]) {
-          grouped[geneStr] = {
-            Gene: geneStr,
-            Protein: item._protein_name || geneStr,
-            TF_Names: new Set(),
-            starts: [],
-            ends: [],
-            zscores: [],
-            TFBS_Count: 0,
-            _crop: item._crop
+          const startNum = Number(getField(item, "Start", "start") ?? NaN);
+          const endNum   = Number(getField(item, "End",   "end")   ?? NaN);
+          const zNum     = Number(getField(item, "Z-Score", "Z-score", "z-score", "zscore") ?? NaN);
+
+          if (!grouped[geneStr]) {
+            grouped[geneStr] = { Gene: geneStr, Protein: item._protein_name || geneStr, TF_Names: new Set(), starts: [], ends: [], zscores: [], TFBS_Count: 0 };
+          }
+          grouped[geneStr].TF_Names.add(tfStr);
+          grouped[geneStr].TFBS_Count += 1;
+          if (Number.isFinite(startNum)) grouped[geneStr].starts.push(startNum);
+          if (Number.isFinite(endNum))   grouped[geneStr].ends.push(endNum);
+          if (Number.isFinite(zNum))     grouped[geneStr].zscores.push(zNum);
+        });
+
+        const result = Object.values(grouped).map((row) => {
+          const zMin = row.zscores.length ? Math.min(...row.zscores) : null;
+          const zMax = row.zscores.length ? Math.max(...row.zscores) : null;
+          return {
+            Gene: row.Gene,
+            "Protein Name": row.Protein,
+            "TF Families": Array.from(row.TF_Names).sort().join(", "),
+            "TFBS Count": row.TFBS_Count,
+            "Z-Score Range": zMin === null ? "N/A" : zMin === zMax ? `${zMin.toFixed(2)}` : `${zMin.toFixed(2)} – ${zMax.toFixed(2)}`,
           };
-        }
-        
-        grouped[geneStr].TF_Names.add(tfStr);
-        grouped[geneStr].TFBS_Count += 1;
-        if (Number.isFinite(startNum)) grouped[geneStr].starts.push(startNum);
-        if (Number.isFinite(endNum)) grouped[geneStr].ends.push(endNum);
-        if (Number.isFinite(zNum)) grouped[geneStr].zscores.push(zNum);
-      });
-      
-      // Convert to array and format aggregated values for grouped gene rows.
-      const groupedRows = Object.values(grouped).map(row => {
-        const startMin = row.starts.length ? Math.min(...row.starts) : null;
-        const startMax = row.starts.length ? Math.max(...row.starts) : null;
-        const endMin = row.ends.length ? Math.min(...row.ends) : null;
-        const endMax = row.ends.length ? Math.max(...row.ends) : null;
-        const zMin = row.zscores.length ? Math.min(...row.zscores) : null;
-        const zMax = row.zscores.length ? Math.max(...row.zscores) : null;
+        });
 
-        return {
-          Gene: row.Gene,
-          "Protein Name": row.Protein,
-          TF_Names: Array.from(row.TF_Names).sort().join(', '),
-          TFBS_Count: row.TFBS_Count,
-          Start_Range: startMin === null ? 'N/A' : (startMin === startMax ? `${startMin}` : `${startMin} to ${startMax}`),
-          End_Range: endMin === null ? 'N/A' : (endMin === endMax ? `${endMin}` : `${endMin} to ${endMax}`),
-          'Z-Score_Range': zMin === null ? 'N/A' : (zMin === zMax ? `${zMin.toFixed(2)}` : `${zMin.toFixed(2)} to ${zMax.toFixed(2)}`),
-          _crop: row._crop
-        };
-      });
-      
-      setRows(groupedRows);
-      setTotal(groupedRows.length);
-    }).catch(err => {
-      console.error('Error fetching crop data:', err);
-      setRows([]);
-      setTotal(0);
-    });
+        setRows(result);
+        setTotal(result.length);
+      })
+      .catch(() => { setRows([]); setTotal(0); })
+      .finally(() => setLoading(false));
   }, [crop]);
 
   return (
-    <main className="container search-page-shell">
-      <header className="search-page-header compact-header">
+    <div className="crop-page">
+      <div className="crop-page-header" style={{ maxWidth: 1400, margin: "0 auto", width: "100%", padding: ".8rem 1.5rem" }}>
         <div>
-          <p className="eyebrow">Crop view</p>
-          <h1>{capitalizeFirst(crop)}</h1>
+          <p className="page-eyebrow">Crop view</p>
+          <h1 style={{ fontSize: "1.2rem" }}>{cap(crop)}</h1>
         </div>
         <div className="results-badge">
           <strong>{total}</strong>
-          <span>TF records</span>
+          <span>genes</span>
         </div>
-      </header>
-
-      <div className="search-table-wrap">
-        <DataTable rows={rows} />
       </div>
-    </main>
+
+      <div className="crop-page-body" style={{ maxWidth: "90%", margin: "0 auto", width: "100%" }}>
+        {loading ? (
+          <div className="loading-state"><div className="loading-spinner" /> Loading {cap(crop)} data…</div>
+        ) : rows.length === 0 ? (
+          <div className="empty-state">No TF records found for {cap(crop)}.</div>
+        ) : (
+          <DataTable rows={rows} />
+        )}
+      </div>
+    </div>
   );
 }
